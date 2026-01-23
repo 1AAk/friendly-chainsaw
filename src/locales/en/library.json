@@ -1,0 +1,20 @@
+{
+  "title": "Component library",
+  "subtitle": "Collect reusable UI primitives and keep usage notes close to the code.",
+  "highlights": [
+    {
+      "title": "Buttons",
+      "body": "Variants, sizes, and clear states for primary actions."
+    },
+    {
+      "title": "Form inputs",
+      "body": "Consistent spacing, helper text, and error messaging."
+    },
+    {
+      "title": "Cards & sections",
+      "body": "Reusable containers with rhythm and hierarchy."
+    }
+  ],
+  "noteTitle": "Usage notes",
+  "noteBody": "Document props, spacing rules, and accessibility details as you build."
+}

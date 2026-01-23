@@ -1,0 +1,27 @@
+{
+  "tagline": "UI/UX starter kit",
+  "title": "Build your first interface with a clean, modern front-end stack.",
+  "subtitle": "This project is wired for React, Vite, Tailwind, ESLint, Prettier, and Docker. Start with layout experiments and iterate quickly with HMR.",
+  "badges": ["React", "Vite", "TypeScript", "Tailwind", "Docker", "ESLint", "Prettier"],
+  "stepsLabel": "Step {{number}}",
+  "steps": [
+    {
+      "title": "Explore layout",
+      "body": "Build a bold hero, then add 2-3 content sections with clear visual rhythm."
+    },
+    {
+      "title": "Shape the UI system",
+      "body": "Define type scale, spacing steps, and a small color palette in Tailwind."
+    },
+    {
+      "title": "Prototype interactions",
+      "body": "Add motion to cards, buttons, and section reveals for polish."
+    }
+  ],
+  "nextMovesTitle": "Next moves",
+  "nextMoves": [
+    "Run the dev server and tweak layout spacing in Tailwind.",
+    "Try a new typography pairing and adjust the scale.",
+    "Introduce one animation for hover or section reveal."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "languageSwitcher": {
+    "label": "Язык",
+    "languages": {
+      "en": "EN",
+      "ru": "RU"
+    }
+  },
+  "navigation": {
+    "home": "Главная",
+    "library": "Библиотека"
+  }
+}

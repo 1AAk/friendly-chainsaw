@@ -1,0 +1,13 @@
+{
+  "languageSwitcher": {
+    "label": "Language",
+    "languages": {
+      "en": "EN",
+      "ru": "RU"
+    }
+  },
+  "navigation": {
+    "home": "Home",
+    "library": "Library"
+  }
+}
