@@ -7,6 +7,7 @@ import Navigation from "./components/Navigation";
 import { getRouteNamespaces } from "./i18n/routeNamespaces";
 import Home from "./routes/Home";
 import Library from "./routes/Library";
+import Tokens from "./routes/Tokens";
 
 function AppLayout() {
   const location = useLocation();
@@ -35,6 +36,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/library" element={<Library />} />
+          <Route path="/tokens" element={<Tokens />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

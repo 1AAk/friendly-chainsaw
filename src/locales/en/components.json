@@ -8,6 +8,7 @@
   },
   "navigation": {
     "home": "Home",
-    "library": "Library"
+    "library": "Library",
+    "tokens": "UI Kit"
   }
 }

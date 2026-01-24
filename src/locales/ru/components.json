@@ -8,6 +8,7 @@
   },
   "navigation": {
     "home": "Главная",
-    "library": "Библиотека"
+    "library": "Библиотека",
+    "tokens": "UI Kit"
   }
 }

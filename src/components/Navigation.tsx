@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 const NAV_ITEMS = [
   { to: "/", key: "navigation.home" },
   { to: "/library", key: "navigation.library" },
+  { to: "/tokens", key: "navigation.tokens" },
 ] as const;
 
 export default function Navigation() {
