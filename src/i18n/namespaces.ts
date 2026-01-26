@@ -3,6 +3,7 @@ export const APP_NAMESPACES = [
   "components",
   "home",
   "library",
+  "screens",
   "tokens",
 ] as const;
 

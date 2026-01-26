@@ -3,6 +3,7 @@ import type { AppNamespace } from "./namespaces";
 const ROUTE_NAMESPACES: Record<string, AppNamespace[]> = {
   "/": ["home", "components"],
   "/library": ["library", "components"],
+  "/screens": ["screens", "components"],
   "/tokens": ["tokens", "components"],
 };
 

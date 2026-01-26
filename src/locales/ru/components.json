@@ -9,6 +9,7 @@
   "navigation": {
     "home": "Главная",
     "library": "Библиотека",
+    "screens": "Экраны",
     "tokens": "UI Kit"
   }
 }

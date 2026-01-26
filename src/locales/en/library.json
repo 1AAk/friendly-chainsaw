@@ -1,20 +1,107 @@
 {
-  "title": "Component library",
-  "subtitle": "Collect reusable UI primitives and keep usage notes close to the code.",
-  "highlights": [
+  "hero": {
+    "kicker": "UI Kit Library",
+    "title": "A full-page UI Kit demo that feels like a real site",
+    "subtitle": "Components are composed into real sections so you can see them working together.",
+    "primary": "Open demo",
+    "secondary": "View components"
+  },
+  "stats": [
     {
-      "title": "Buttons",
-      "body": "Variants, sizes, and clear states for primary actions."
+      "value": "12+",
+      "label": "Sections"
     },
     {
-      "title": "Form inputs",
-      "body": "Consistent spacing, helper text, and error messaging."
+      "value": "28",
+      "label": "Components"
     },
     {
-      "title": "Cards & sections",
-      "body": "Reusable containers with rhythm and hierarchy."
+      "value": "100%",
+      "label": "Tokens"
     }
   ],
-  "noteTitle": "Usage notes",
-  "noteBody": "Document props, spacing rules, and accessibility details as you build."
+  "featuresTitle": "What you see here",
+  "featuresSubtitle": "A set of blocks assembled like a real product.",
+  "features": [
+    {
+      "title": "Composition",
+      "body": "Cards, forms, and CTAs are arranged into a cohesive layout."
+    },
+    {
+      "title": "States",
+      "body": "Buttons and inputs show real interaction states in context."
+    },
+    {
+      "title": "Rhythm",
+      "body": "Sections control width and vertical spacing for readability."
+    }
+  ],
+  "showcase": {
+    "title": "Capability catalog",
+    "subtitle": "A content block with filters and cards.",
+    "badge": "Overview",
+    "filterPrimary": "Products",
+    "filterSecondary": "Flows",
+    "filterTertiary": "Templates",
+    "primaryAction": "Open catalog"
+  },
+  "showcaseItems": [
+    {
+      "title": "Onboarding flow",
+      "body": "Welcome screen with a focused quick start.",
+      "tag": "new"
+    },
+    {
+      "title": "Billing card",
+      "body": "Plan tile with quick actions.",
+      "tag": "pro"
+    },
+    {
+      "title": "Usage insights",
+      "body": "Stats block for tracking progress.",
+      "tag": "data"
+    }
+  ],
+  "form": {
+    "title": "Contact form",
+    "subtitle": "Inputs and buttons in a real layout.",
+    "searchLabel": "Search the catalog",
+    "searchPlaceholder": "e.g., onboarding",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "primary": "Send request",
+    "secondary": "Save draft"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "Plan cards laid out as they would be on a site.",
+    "popular": "Popular"
+  },
+  "plans": [
+    {
+      "name": "Starter",
+      "price": "$0",
+      "body": "Basic access for learning and prototyping.",
+      "cta": "Start"
+    },
+    {
+      "name": "Studio",
+      "price": "$19",
+      "body": "For teams that need shared tokens.",
+      "cta": "Choose",
+      "featured": true
+    },
+    {
+      "name": "Enterprise",
+      "price": "Let’s talk",
+      "body": "Advanced customization and support.",
+      "cta": "Contact"
+    }
+  ],
+  "cta": {
+    "title": "Ready for the next stage?",
+    "subtitle": "Next up: building screens only from UI Kit components.",
+    "primary": "Go to Stage 3",
+    "secondary": "Back to tokens"
+  }
 }

@@ -1,9 +1,31 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button, {
+  type ButtonRadiusToken,
+  type ButtonSize,
+} from "../components/Button";
+import Card, {
+  type CardPaddingToken,
+  type CardRadiusToken,
+} from "../components/Card";
+import Input, {
+  type InputPreviewState,
+  type InputRadiusToken,
+  type InputSize,
+} from "../components/Input";
+import Section, {
+  type SectionPaddingToken,
+  type SectionSize,
+} from "../components/Section";
 const STORAGE_KEY = "uiux-color-tokens";
 const TYPO_STORAGE_KEY = "uiux-typography-tokens";
 const SPACE_STORAGE_KEY = "uiux-spacing-tokens";
+const RADIUS_STORAGE_KEY = "uiux-radius-tokens";
+const BUTTON_STORAGE_KEY = "uiux-button-settings";
+const INPUT_STORAGE_KEY = "uiux-input-settings";
+const CARD_STORAGE_KEY = "uiux-card-settings";
+const SECTION_STORAGE_KEY = "uiux-section-settings";
 const VISIBILITY_STORAGE_KEY = "uiux-token-visibility";
 
 const DEFAULT_TOKENS = {
@@ -41,14 +63,55 @@ const DEFAULT_SPACING = {
   "4xl": 64,
 } as const;
 
+const DEFAULT_RADIUS = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+} as const;
+
+const DEFAULT_BUTTON_SETTINGS = {
+  size: "md",
+  radius: "lg",
+  primaryHover: "#F59E0B",
+  secondaryHover: "#38BDF8",
+  focusRing: "#F472B6",
+  disabledOpacity: 0.5,
+} as const;
+
+const DEFAULT_INPUT_SETTINGS = {
+  size: "md",
+  radius: "md",
+  focusRing: "#F472B6",
+  error: "#EF4444",
+} as const;
+
+const DEFAULT_CARD_SETTINGS = {
+  padding: "xl",
+  radius: "xl",
+  shadow: 0.18,
+} as const;
+
+const DEFAULT_SECTION_SETTINGS = {
+  size: "lg",
+  paddingY: "xl",
+} as const;
+
 const DEFAULT_VISIBILITY = {
   colors: true,
   typography: true,
   spacing: true,
+  radius: true,
+  button: true,
+  input: true,
+  card: true,
+  section: true,
 } as const;
 
 type TypographyKey = keyof typeof DEFAULT_TYPOGRAPHY;
 type SpacingKey = keyof typeof DEFAULT_SPACING;
+type RadiusKey = keyof typeof DEFAULT_RADIUS;
 
 type TypographyValue = {
   size: number;
@@ -58,6 +121,32 @@ type TypographyValue = {
 
 type TypographyMap = Record<TypographyKey, TypographyValue>;
 type SpacingMap = Record<SpacingKey, number>;
+type RadiusMap = Record<RadiusKey, number>;
+type ButtonSettings = {
+  size: ButtonSize;
+  radius: ButtonRadiusToken;
+  primaryHover: string;
+  secondaryHover: string;
+  focusRing: string;
+  disabledOpacity: number;
+};
+type ButtonHexKey = "primaryHover" | "secondaryHover" | "focusRing";
+type InputSettings = {
+  size: InputSize;
+  radius: InputRadiusToken;
+  focusRing: string;
+  error: string;
+};
+type InputHexKey = "focusRing" | "error";
+type CardSettings = {
+  padding: CardPaddingToken;
+  radius: CardRadiusToken;
+  shadow: number;
+};
+type SectionSettings = {
+  size: SectionSize;
+  paddingY: SectionPaddingToken;
+};
 type VisibilityMap = Record<keyof typeof DEFAULT_VISIBILITY, boolean>;
 
 const TOKEN_ORDER: TokenKey[] = [
@@ -91,14 +180,69 @@ const SPACING_ORDER: SpacingKey[] = [
   "4xl",
 ];
 
+const RADIUS_ORDER: RadiusKey[] = ["xs", "sm", "md", "lg", "xl"];
+const BUTTON_SIZES: ButtonSize[] = ["sm", "md", "lg"];
+const BUTTON_RADII: ButtonRadiusToken[] = ["xs", "sm", "md", "lg", "xl"];
+const INPUT_SIZES: InputSize[] = ["sm", "md", "lg"];
+const INPUT_RADII: InputRadiusToken[] = ["xs", "sm", "md", "lg", "xl"];
+const CARD_PADDING_OPTIONS: CardPaddingToken[] = [
+  "xs",
+  "sm",
+  "md",
+  "lg",
+  "xl",
+  "2xl",
+  "3xl",
+  "4xl",
+];
+const CARD_RADII: CardRadiusToken[] = ["xs", "sm", "md", "lg", "xl"];
+const SECTION_SIZES: SectionSize[] = ["sm", "md", "lg", "xl"];
+const SECTION_PADDING_OPTIONS: SectionPaddingToken[] = [
+  "xs",
+  "sm",
+  "md",
+  "lg",
+  "xl",
+  "2xl",
+  "3xl",
+  "4xl",
+];
+const SECTION_PREVIEW_WIDTHS: Record<SectionSize, number> = {
+  sm: 0.62,
+  md: 0.74,
+  lg: 0.88,
+  xl: 1,
+};
+const BUTTON_OPACITY_RANGE = { min: 0.2, max: 1 };
+const CARD_SHADOW_RANGE = { min: 0, max: 0.35 };
+
 const SIZE_RANGE = { min: 10, max: 72 };
 const LINE_RANGE = { min: 12, max: 88 };
 const SPACING_RANGE = { min: 0, max: 128 };
+const RADIUS_RANGE = { min: 0, max: 48 };
 const WEIGHTS = [300, 400, 500, 600, 700] as const;
 
 const isValidHex = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value);
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+const normalizeHexInput = (value: string) => {
+  const trimmed = value.trim().toUpperCase();
+  if (/^[0-9A-F]{6}$/.test(trimmed)) {
+    return `#${trimmed}`;
+  }
+
+  return trimmed;
+};
+const buildCardShadow = (value: number) =>
+  value <= 0 ? "none" : `0 24px 60px rgba(15, 23, 42, ${value})`;
+const normalizeButtonHex = (value: unknown, fallback: string) => {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = normalizeHexInput(value);
+  return isValidHex(normalized) ? normalized : fallback;
+};
 
 const normalizeTokens = (raw: unknown): TokenMap => {
   if (!raw || typeof raw !== "object") {
@@ -168,10 +312,56 @@ const normalizeSpacing = (raw: unknown): SpacingMap => {
   return next;
 };
 
+const normalizeRadius = (raw: unknown): RadiusMap => {
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_RADIUS };
+  }
+
+  const record = raw as Record<string, unknown>;
+  const next: RadiusMap = { ...DEFAULT_RADIUS };
+
+  RADIUS_ORDER.forEach((key) => {
+    const value = Number(record[key]);
+    if (Number.isFinite(value)) {
+      next[key] = clamp(value, RADIUS_RANGE.min, RADIUS_RANGE.max);
+    }
+  });
+
+  return next;
+};
+
+const isButtonSize = (value: unknown): value is ButtonSize =>
+  BUTTON_SIZES.includes(value as ButtonSize);
+
+const isButtonRadius = (value: unknown): value is ButtonRadiusToken =>
+  BUTTON_RADII.includes(value as ButtonRadiusToken);
+
+const isInputSize = (value: unknown): value is InputSize =>
+  INPUT_SIZES.includes(value as InputSize);
+
+const isInputRadius = (value: unknown): value is InputRadiusToken =>
+  INPUT_RADII.includes(value as InputRadiusToken);
+
+const isCardPadding = (value: unknown): value is CardPaddingToken =>
+  CARD_PADDING_OPTIONS.includes(value as CardPaddingToken);
+
+const isCardRadius = (value: unknown): value is CardRadiusToken =>
+  CARD_RADII.includes(value as CardRadiusToken);
+
+const isSectionSize = (value: unknown): value is SectionSize =>
+  SECTION_SIZES.includes(value as SectionSize);
+
+const isSectionPadding = (value: unknown): value is SectionPaddingToken =>
+  SECTION_PADDING_OPTIONS.includes(value as SectionPaddingToken);
+
+
 const toCssVarName = (key: string) =>
   `--uiux-${key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}`;
 
 const toSpaceVarName = (key: SpacingKey) => `--uiux-space-${key}`;
+const toRadiusVarName = (key: RadiusKey) => `--uiux-radius-${key}`;
+const spaceVar = (key: SpacingKey) => `var(${toSpaceVarName(key)})`;
+const radiusVar = (key: RadiusKey) => `var(${toRadiusVarName(key)})`;
 
 const buildCssVars = (tokens: TokenMap) => {
   const vars: Record<string, string> = {};
@@ -195,6 +385,14 @@ const buildSpacingVars = (spacing: SpacingMap) => {
   const vars: Record<string, string> = {};
   SPACING_ORDER.forEach((key) => {
     vars[toSpaceVarName(key)] = `${spacing[key]}px`;
+  });
+  return vars;
+};
+
+const buildRadiusVars = (radius: RadiusMap) => {
+  const vars: Record<string, string> = {};
+  RADIUS_ORDER.forEach((key) => {
+    vars[toRadiusVarName(key)] = `${radius[key]}px`;
   });
   return vars;
 };
@@ -250,6 +448,152 @@ const getStoredSpacing = (): SpacingMap => {
   }
 };
 
+const getStoredRadius = (): RadiusMap => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_RADIUS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(RADIUS_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_RADIUS };
+    }
+
+    return normalizeRadius(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_RADIUS };
+  }
+};
+
+const getStoredButtonSettings = (): ButtonSettings => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_BUTTON_SETTINGS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(BUTTON_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_BUTTON_SETTINGS };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<ButtonSettings> | null;
+    const opacityValue = Number(parsed?.disabledOpacity);
+    return {
+      size: isButtonSize(parsed?.size)
+        ? parsed.size
+        : DEFAULT_BUTTON_SETTINGS.size,
+      radius: isButtonRadius(parsed?.radius)
+        ? parsed.radius
+        : DEFAULT_BUTTON_SETTINGS.radius,
+      primaryHover: normalizeButtonHex(
+        parsed?.primaryHover,
+        DEFAULT_BUTTON_SETTINGS.primaryHover,
+      ),
+      secondaryHover: normalizeButtonHex(
+        parsed?.secondaryHover,
+        DEFAULT_BUTTON_SETTINGS.secondaryHover,
+      ),
+      focusRing: normalizeButtonHex(
+        parsed?.focusRing,
+        DEFAULT_BUTTON_SETTINGS.focusRing,
+      ),
+      disabledOpacity: Number.isFinite(opacityValue)
+        ? clamp(
+            opacityValue,
+            BUTTON_OPACITY_RANGE.min,
+            BUTTON_OPACITY_RANGE.max,
+          )
+        : DEFAULT_BUTTON_SETTINGS.disabledOpacity,
+    };
+  } catch {
+    return { ...DEFAULT_BUTTON_SETTINGS };
+  }
+};
+
+const getStoredInputSettings = (): InputSettings => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_INPUT_SETTINGS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(INPUT_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_INPUT_SETTINGS };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<InputSettings> | null;
+    return {
+      size: isInputSize(parsed?.size)
+        ? parsed.size
+        : DEFAULT_INPUT_SETTINGS.size,
+      radius: isInputRadius(parsed?.radius)
+        ? parsed.radius
+        : DEFAULT_INPUT_SETTINGS.radius,
+      focusRing: normalizeButtonHex(
+        parsed?.focusRing,
+        DEFAULT_INPUT_SETTINGS.focusRing,
+      ),
+      error: normalizeButtonHex(parsed?.error, DEFAULT_INPUT_SETTINGS.error),
+    };
+  } catch {
+    return { ...DEFAULT_INPUT_SETTINGS };
+  }
+};
+
+const getStoredCardSettings = (): CardSettings => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_CARD_SETTINGS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(CARD_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_CARD_SETTINGS };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<CardSettings> | null;
+    const shadowValue = Number(parsed?.shadow);
+    return {
+      padding: isCardPadding(parsed?.padding)
+        ? parsed.padding
+        : DEFAULT_CARD_SETTINGS.padding,
+      radius: isCardRadius(parsed?.radius)
+        ? parsed.radius
+        : DEFAULT_CARD_SETTINGS.radius,
+      shadow: Number.isFinite(shadowValue)
+        ? clamp(shadowValue, CARD_SHADOW_RANGE.min, CARD_SHADOW_RANGE.max)
+        : DEFAULT_CARD_SETTINGS.shadow,
+    };
+  } catch {
+    return { ...DEFAULT_CARD_SETTINGS };
+  }
+};
+
+const getStoredSectionSettings = (): SectionSettings => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_SECTION_SETTINGS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SECTION_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_SECTION_SETTINGS };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<SectionSettings> | null;
+    return {
+      size: isSectionSize(parsed?.size)
+        ? parsed.size
+        : DEFAULT_SECTION_SETTINGS.size,
+      paddingY: isSectionPadding(parsed?.paddingY)
+        ? parsed.paddingY
+        : DEFAULT_SECTION_SETTINGS.paddingY,
+    };
+  } catch {
+    return { ...DEFAULT_SECTION_SETTINGS };
+  }
+};
+
 const getStoredVisibility = (): VisibilityMap => {
   if (typeof window === "undefined") {
     return { ...DEFAULT_VISIBILITY };
@@ -275,6 +619,26 @@ const getStoredVisibility = (): VisibilityMap => {
         typeof parsed?.spacing === "boolean"
           ? parsed.spacing
           : DEFAULT_VISIBILITY.spacing,
+      radius:
+        typeof parsed?.radius === "boolean"
+          ? parsed.radius
+          : DEFAULT_VISIBILITY.radius,
+      button:
+        typeof parsed?.button === "boolean"
+          ? parsed.button
+          : DEFAULT_VISIBILITY.button,
+      input:
+        typeof parsed?.input === "boolean"
+          ? parsed.input
+          : DEFAULT_VISIBILITY.input,
+      card:
+        typeof parsed?.card === "boolean"
+          ? parsed.card
+          : DEFAULT_VISIBILITY.card,
+      section:
+        typeof parsed?.section === "boolean"
+          ? parsed.section
+          : DEFAULT_VISIBILITY.section,
     };
   } catch {
     return { ...DEFAULT_VISIBILITY };
@@ -296,19 +660,99 @@ export default function Tokens() {
   const [spacing, setSpacing] = useState<SpacingMap>(() =>
     getStoredSpacing(),
   );
+  const [radius, setRadius] = useState<RadiusMap>(() => getStoredRadius());
+  const [hexDrafts, setHexDrafts] = useState<TokenMap>(() => getStoredTokens());
+  const [buttonSettings, setButtonSettings] = useState<ButtonSettings>(() =>
+    getStoredButtonSettings(),
+  );
+  const [buttonHexDrafts, setButtonHexDrafts] = useState<
+    Record<ButtonHexKey, string>
+  >(() => ({
+    primaryHover: DEFAULT_BUTTON_SETTINGS.primaryHover,
+    secondaryHover: DEFAULT_BUTTON_SETTINGS.secondaryHover,
+    focusRing: DEFAULT_BUTTON_SETTINGS.focusRing,
+  }));
+  const [inputSettings, setInputSettings] = useState<InputSettings>(() =>
+    getStoredInputSettings(),
+  );
+  const [inputHexDrafts, setInputHexDrafts] = useState<
+    Record<InputHexKey, string>
+  >(() => ({
+    focusRing: DEFAULT_INPUT_SETTINGS.focusRing,
+    error: DEFAULT_INPUT_SETTINGS.error,
+  }));
+  const [cardSettings, setCardSettings] = useState<CardSettings>(() =>
+    getStoredCardSettings(),
+  );
+  const [sectionSettings, setSectionSettings] = useState<SectionSettings>(() =>
+    getStoredSectionSettings(),
+  );
   const [visibility, setVisibility] = useState<VisibilityMap>(() =>
     getStoredVisibility(),
   );
+  const buttonVariants = [
+    { key: "primary", variant: "primary" },
+    { key: "secondary", variant: "secondary" },
+    { key: "ghost", variant: "ghost" },
+  ] as const;
+  const buttonStates = [
+    { key: "default", state: "default" },
+    { key: "hover", state: "hover" },
+    { key: "focus", state: "focus" },
+    { key: "disabled", state: "disabled" },
+  ] as const;
+  const inputStates: Array<{
+    key: "default" | "focus" | "error" | "disabled";
+    previewState: InputPreviewState;
+    disabled?: boolean;
+  }> = [
+    { key: "default", previewState: "default" },
+    { key: "focus", previewState: "focus" },
+    { key: "error", previewState: "error" },
+    { key: "disabled", previewState: "default", disabled: true },
+  ];
+  const sectionPreviewWidth = SECTION_PREVIEW_WIDTHS[sectionSettings.size];
 
   const cssVars = useMemo(
     () => ({
       ...buildCssVars(tokens),
       ...buildTypographyVars(typography),
       ...buildSpacingVars(spacing),
+      ...buildRadiusVars(radius),
     }),
-    [tokens, typography, spacing],
+    [tokens, typography, spacing, radius],
   );
   const cssVarsStyle = cssVars as CSSProperties;
+  const buttonStyleVars = useMemo(
+    () =>
+      ({
+        "--uiux-btn-primary-hover": buttonSettings.primaryHover,
+        "--uiux-btn-secondary-hover": buttonSettings.secondaryHover,
+        "--uiux-btn-focus-ring": buttonSettings.focusRing,
+        "--uiux-btn-disabled-opacity": `${buttonSettings.disabledOpacity}`,
+      }) as CSSProperties,
+    [buttonSettings],
+  );
+  const inputStyleVars = useMemo(
+    () =>
+      ({
+        "--uiux-input-focus": inputSettings.focusRing,
+        "--uiux-input-error": inputSettings.error,
+      }) as CSSProperties,
+    [inputSettings],
+  );
+  const cardShadow = useMemo(
+    () => buildCardShadow(cardSettings.shadow),
+    [cardSettings.shadow],
+  );
+  const cardStyleVars = useMemo(
+    () =>
+      ({
+        backgroundColor: "var(--uiux-neutral100)",
+        borderColor: "var(--uiux-neutral600)",
+      }) as CSSProperties,
+    [],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -318,11 +762,35 @@ export default function Tokens() {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
     window.localStorage.setItem(TYPO_STORAGE_KEY, JSON.stringify(typography));
     window.localStorage.setItem(SPACE_STORAGE_KEY, JSON.stringify(spacing));
+    window.localStorage.setItem(RADIUS_STORAGE_KEY, JSON.stringify(radius));
     const root = document.documentElement;
     Object.entries(cssVars).forEach(([key, value]) => {
       root.style.setProperty(key, value);
     });
-  }, [tokens, typography, spacing, cssVars]);
+  }, [tokens, typography, spacing, radius, cssVars]);
+
+  useEffect(() => {
+    setHexDrafts(tokens);
+  }, [tokens]);
+
+  useEffect(() => {
+    setButtonHexDrafts({
+      primaryHover: buttonSettings.primaryHover,
+      secondaryHover: buttonSettings.secondaryHover,
+      focusRing: buttonSettings.focusRing,
+    });
+  }, [
+    buttonSettings.primaryHover,
+    buttonSettings.secondaryHover,
+    buttonSettings.focusRing,
+  ]);
+
+  useEffect(() => {
+    setInputHexDrafts({
+      focusRing: inputSettings.focusRing,
+      error: inputSettings.error,
+    });
+  }, [inputSettings.focusRing, inputSettings.error]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -335,11 +803,90 @@ export default function Tokens() {
     );
   }, [visibility]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      BUTTON_STORAGE_KEY,
+      JSON.stringify(buttonSettings),
+    );
+    const root = document.documentElement;
+    root.style.setProperty("--uiux-btn-primary-hover", buttonSettings.primaryHover);
+    root.style.setProperty(
+      "--uiux-btn-secondary-hover",
+      buttonSettings.secondaryHover,
+    );
+    root.style.setProperty("--uiux-btn-focus-ring", buttonSettings.focusRing);
+    root.style.setProperty(
+      "--uiux-btn-disabled-opacity",
+      `${buttonSettings.disabledOpacity}`,
+    );
+  }, [buttonSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      INPUT_STORAGE_KEY,
+      JSON.stringify(inputSettings),
+    );
+    const root = document.documentElement;
+    root.style.setProperty("--uiux-input-focus", inputSettings.focusRing);
+    root.style.setProperty("--uiux-input-error", inputSettings.error);
+  }, [inputSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      CARD_STORAGE_KEY,
+      JSON.stringify(cardSettings),
+    );
+  }, [cardSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      SECTION_STORAGE_KEY,
+      JSON.stringify(sectionSettings),
+    );
+  }, [sectionSettings]);
+
   const handleChange = (key: TokenKey, value: string) => {
     const nextValue = value.toUpperCase();
     setTokens((prev) => ({
       ...prev,
       [key]: nextValue,
+    }));
+  };
+
+  const handleHexChange = (key: TokenKey, value: string) => {
+    const normalized = normalizeHexInput(value);
+    setHexDrafts((prev) => ({
+      ...prev,
+      [key]: normalized,
+    }));
+    if (isValidHex(normalized)) {
+      setTokens((prev) => ({
+        ...prev,
+        [key]: normalized,
+      }));
+    }
+  };
+
+  const handleHexBlur = (key: TokenKey) => {
+    setHexDrafts((prev) => ({
+      ...prev,
+      [key]: isValidHex(prev[key]) ? prev[key] : tokens[key],
     }));
   };
 
@@ -353,6 +900,10 @@ export default function Tokens() {
 
   const handleResetSpacing = () => {
     setSpacing({ ...DEFAULT_SPACING });
+  };
+
+  const handleResetRadius = () => {
+    setRadius({ ...DEFAULT_RADIUS });
   };
 
   const toggleVisibility = (key: keyof VisibilityMap) => {
@@ -390,6 +941,133 @@ export default function Tokens() {
     }));
   };
 
+  const handleRadiusChange = (key: RadiusKey, value: number) => {
+    setRadius((prev) => ({
+      ...prev,
+      [key]: clamp(value, RADIUS_RANGE.min, RADIUS_RANGE.max),
+    }));
+  };
+
+  const handleResetButton = () => {
+    setButtonSettings({ ...DEFAULT_BUTTON_SETTINGS });
+  };
+
+  const handleButtonSize = (size: ButtonSize) => {
+    setButtonSettings((prev) => ({ ...prev, size }));
+  };
+
+  const handleButtonRadius = (radiusToken: ButtonRadiusToken) => {
+    setButtonSettings((prev) => ({ ...prev, radius: radiusToken }));
+  };
+
+  const handleButtonOpacity = (value: number) => {
+    setButtonSettings((prev) => ({
+      ...prev,
+      disabledOpacity: clamp(
+        value,
+        BUTTON_OPACITY_RANGE.min,
+        BUTTON_OPACITY_RANGE.max,
+      ),
+    }));
+  };
+
+  const handleButtonHexChange = (key: ButtonHexKey, value: string) => {
+    const normalized = normalizeHexInput(value);
+    setButtonHexDrafts((prev) => ({
+      ...prev,
+      [key]: normalized,
+    }));
+    if (isValidHex(normalized)) {
+      setButtonSettings((prev) => ({
+        ...prev,
+        [key]: normalized,
+      }));
+    }
+  };
+
+  const handleButtonHexBlur = (key: ButtonHexKey) => {
+    setButtonHexDrafts((prev) => ({
+      ...prev,
+      [key]: isValidHex(prev[key]) ? prev[key] : buttonSettings[key],
+    }));
+  };
+
+  const handleResetInput = () => {
+    setInputSettings({ ...DEFAULT_INPUT_SETTINGS });
+  };
+
+  const handleInputSize = (size: InputSize) => {
+    setInputSettings((prev) => ({ ...prev, size }));
+  };
+
+  const handleInputRadius = (radiusToken: InputRadiusToken) => {
+    setInputSettings((prev) => ({ ...prev, radius: radiusToken }));
+  };
+
+  const handleInputHexChange = (key: InputHexKey, value: string) => {
+    const normalized = normalizeHexInput(value);
+    setInputHexDrafts((prev) => ({
+      ...prev,
+      [key]: normalized,
+    }));
+    if (isValidHex(normalized)) {
+      setInputSettings((prev) => ({
+        ...prev,
+        [key]: normalized,
+      }));
+    }
+  };
+
+  const handleInputHexBlur = (key: InputHexKey) => {
+    setInputHexDrafts((prev) => ({
+      ...prev,
+      [key]: isValidHex(prev[key]) ? prev[key] : inputSettings[key],
+    }));
+  };
+
+  const handleResetCard = () => {
+    setCardSettings({
+      padding: DEFAULT_CARD_SETTINGS.padding,
+      radius: DEFAULT_CARD_SETTINGS.radius,
+      shadow: DEFAULT_CARD_SETTINGS.shadow,
+    });
+  };
+
+  const handleCardPadding = (padding: CardPaddingToken) => {
+    setCardSettings((prev) => ({ ...prev, padding }));
+  };
+
+  const handleCardRadius = (radiusToken: CardRadiusToken) => {
+    setCardSettings((prev) => ({ ...prev, radius: radiusToken }));
+  };
+
+  const handleCardShadow = (value: number) => {
+    setCardSettings((prev) => ({
+      ...prev,
+      shadow: clamp(value, CARD_SHADOW_RANGE.min, CARD_SHADOW_RANGE.max),
+    }));
+  };
+
+  const handleResetSection = () => {
+    setSectionSettings({ ...DEFAULT_SECTION_SETTINGS });
+  };
+
+  const handleSectionSize = (size: SectionSize) => {
+    setSectionSettings((prev) => ({ ...prev, size }));
+  };
+
+  const handleSectionPadding = (paddingY: SectionPaddingToken) => {
+    setSectionSettings((prev) => ({ ...prev, paddingY }));
+  };
+
+  const chipClass = (active: boolean) =>
+    `rounded-full border px-3 py-1 text-xs uppercase tracking-[0.2em] transition ${
+      active
+        ? "border-amber-300/60 bg-amber-400/20 text-amber-100"
+        : "border-slate-800 text-slate-300 hover:border-slate-600"
+    }`;
+
+
   return (
     <div className="flex flex-col gap-10" style={cssVarsStyle}>
       <section className="flex flex-col gap-6 motion-safe:animate-fade-in">
@@ -403,7 +1081,7 @@ export default function Tokens() {
       </section>
 
       <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:self-start">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-xl font-semibold">{t("sections.picker")}</h2>
             <div className="flex flex-wrap items-center gap-2">
@@ -467,9 +1145,16 @@ export default function Tokens() {
                       className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
                       aria-label={t(`fields.${key}.label`)}
                     />
-                    <span className="rounded-full border border-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
-                      {tokens[key]}
-                    </span>
+                    <input
+                      type="text"
+                      value={hexDrafts[key]}
+                      onChange={(event) =>
+                        handleHexChange(key, event.target.value)
+                      }
+                      onBlur={() => handleHexBlur(key)}
+                      className="w-24 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                      aria-label={t(`fields.${key}.label`)}
+                    />
                   </div>
                 </div>
               ))}
@@ -663,124 +1348,672 @@ export default function Tokens() {
               ))}
             </div>
           ) : null}
+
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t("sections.radius")}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleVisibility("radius")}
+                aria-label={
+                  visibility.radius
+                    ? t("actions.hideRadius")
+                    : t("actions.showRadius")
+                }
+                title={
+                  visibility.radius
+                    ? t("actions.hideRadius")
+                    : t("actions.showRadius")
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">
+                  {visibility.radius
+                    ? t("icons.expanded")
+                    : t("icons.collapsed")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetRadius}
+                aria-label={t("actions.resetRadius")}
+                title={t("actions.resetRadius")}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">{t("icons.reset")}</span>
+              </button>
+            </div>
+          </div>
+
+          {visibility.radius ? (
+            <div className="grid gap-4">
+              {RADIUS_ORDER.map((key) => (
+                <div
+                  key={key}
+                  className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold">
+                      {t(`radius.steps.${key}.label`)}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {t(`radius.steps.${key}.hint`)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      {t("radius.valueLabel")}
+                    </label>
+                    <input
+                      type="number"
+                      min={RADIUS_RANGE.min}
+                      max={RADIUS_RANGE.max}
+                      value={radius[key]}
+                      onChange={(event) =>
+                        handleRadiusChange(key, Number(event.target.value))
+                      }
+                      className="w-24 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200"
+                    />
+                    <span className="text-xs text-slate-400">
+                      {t("radius.unit")}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t("sections.button")}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleVisibility("button")}
+                aria-label={
+                  visibility.button
+                    ? t("actions.hideButton")
+                    : t("actions.showButton")
+                }
+                title={
+                  visibility.button
+                    ? t("actions.hideButton")
+                    : t("actions.showButton")
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">
+                  {visibility.button
+                    ? t("icons.expanded")
+                    : t("icons.collapsed")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetButton}
+                aria-label={t("actions.resetButton")}
+                title={t("actions.resetButton")}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">{t("icons.reset")}</span>
+              </button>
+            </div>
+          </div>
+
+          {visibility.button ? (
+            <div className="grid gap-4">
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("buttonControls.sizeLabel")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {BUTTON_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleButtonSize(size)}
+                      className={chipClass(buttonSettings.size === size)}
+                    >
+                      {t(`buttonControls.sizes.${size}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("buttonControls.radiusLabel")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {BUTTON_RADII.map((radiusToken) => (
+                    <button
+                      key={radiusToken}
+                      type="button"
+                      onClick={() => handleButtonRadius(radiusToken)}
+                      className={chipClass(
+                        buttonSettings.radius === radiusToken,
+                      )}
+                    >
+                      {t(`buttonControls.radii.${radiusToken}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("buttonControls.primaryHoverLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={buttonSettings.primaryHover}
+                    onChange={(event) =>
+                      handleButtonHexChange(
+                        "primaryHover",
+                        event.target.value,
+                      )
+                    }
+                    className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
+                    aria-label={t("buttonControls.primaryHoverLabel")}
+                  />
+                  <input
+                    type="text"
+                    value={buttonHexDrafts.primaryHover}
+                    onChange={(event) =>
+                      handleButtonHexChange("primaryHover", event.target.value)
+                    }
+                    onBlur={() => handleButtonHexBlur("primaryHover")}
+                    className="w-28 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("buttonControls.secondaryHoverLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={buttonSettings.secondaryHover}
+                    onChange={(event) =>
+                      handleButtonHexChange(
+                        "secondaryHover",
+                        event.target.value,
+                      )
+                    }
+                    className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
+                    aria-label={t("buttonControls.secondaryHoverLabel")}
+                  />
+                  <input
+                    type="text"
+                    value={buttonHexDrafts.secondaryHover}
+                    onChange={(event) =>
+                      handleButtonHexChange(
+                        "secondaryHover",
+                        event.target.value,
+                      )
+                    }
+                    onBlur={() => handleButtonHexBlur("secondaryHover")}
+                    className="w-28 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("buttonControls.focusRingLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={buttonSettings.focusRing}
+                    onChange={(event) =>
+                      handleButtonHexChange("focusRing", event.target.value)
+                    }
+                    className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
+                    aria-label={t("buttonControls.focusRingLabel")}
+                  />
+                  <input
+                    type="text"
+                    value={buttonHexDrafts.focusRing}
+                    onChange={(event) =>
+                      handleButtonHexChange("focusRing", event.target.value)
+                    }
+                    onBlur={() => handleButtonHexBlur("focusRing")}
+                    className="w-28 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("buttonControls.opacityLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={BUTTON_OPACITY_RANGE.min}
+                    max={BUTTON_OPACITY_RANGE.max}
+                    step="0.05"
+                    value={buttonSettings.disabledOpacity}
+                    onChange={(event) =>
+                      handleButtonOpacity(Number(event.target.value))
+                    }
+                    className="w-full"
+                  />
+                  <span className="text-xs text-slate-300">
+                    {Math.round(buttonSettings.disabledOpacity * 100)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t("sections.input")}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleVisibility("input")}
+                aria-label={
+                  visibility.input
+                    ? t("actions.hideInput")
+                    : t("actions.showInput")
+                }
+                title={
+                  visibility.input
+                    ? t("actions.hideInput")
+                    : t("actions.showInput")
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">
+                  {visibility.input
+                    ? t("icons.expanded")
+                    : t("icons.collapsed")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetInput}
+                aria-label={t("actions.resetInput")}
+                title={t("actions.resetInput")}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">{t("icons.reset")}</span>
+              </button>
+            </div>
+          </div>
+
+          {visibility.input ? (
+            <div className="grid gap-4">
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("inputControls.sizeLabel")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {INPUT_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleInputSize(size)}
+                      className={chipClass(inputSettings.size === size)}
+                    >
+                      {t(`inputControls.sizes.${size}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("inputControls.radiusLabel")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {INPUT_RADII.map((radiusToken) => (
+                    <button
+                      key={radiusToken}
+                      type="button"
+                      onClick={() => handleInputRadius(radiusToken)}
+                      className={chipClass(
+                        inputSettings.radius === radiusToken,
+                      )}
+                    >
+                      {t(`inputControls.radii.${radiusToken}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("inputControls.focusLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={inputSettings.focusRing}
+                    onChange={(event) =>
+                      handleInputHexChange("focusRing", event.target.value)
+                    }
+                    className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
+                    aria-label={t("inputControls.focusLabel")}
+                  />
+                  <input
+                    type="text"
+                    value={inputHexDrafts.focusRing}
+                    onChange={(event) =>
+                      handleInputHexChange("focusRing", event.target.value)
+                    }
+                    onBlur={() => handleInputHexBlur("focusRing")}
+                    className="w-28 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("inputControls.errorLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={inputSettings.error}
+                    onChange={(event) =>
+                      handleInputHexChange("error", event.target.value)
+                    }
+                    className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
+                    aria-label={t("inputControls.errorLabel")}
+                  />
+                  <input
+                    type="text"
+                    value={inputHexDrafts.error}
+                    onChange={(event) =>
+                      handleInputHexChange("error", event.target.value)
+                    }
+                    onBlur={() => handleInputHexBlur("error")}
+                    className="w-28 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t("sections.card")}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleVisibility("card")}
+                aria-label={
+                  visibility.card ? t("actions.hideCard") : t("actions.showCard")
+                }
+                title={
+                  visibility.card ? t("actions.hideCard") : t("actions.showCard")
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">
+                  {visibility.card ? t("icons.expanded") : t("icons.collapsed")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetCard}
+                aria-label={t("actions.resetCard")}
+                title={t("actions.resetCard")}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">{t("icons.reset")}</span>
+              </button>
+            </div>
+          </div>
+
+          {visibility.card ? (
+            <div className="grid gap-4">
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("cardControls.paddingLabel")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {CARD_PADDING_OPTIONS.map((padding) => (
+                    <button
+                      key={padding}
+                      type="button"
+                      onClick={() => handleCardPadding(padding)}
+                      className={chipClass(cardSettings.padding === padding)}
+                    >
+                      {t(`cardControls.padding.${padding}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("cardControls.radiusLabel")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {CARD_RADII.map((radiusToken) => (
+                    <button
+                      key={radiusToken}
+                      type="button"
+                      onClick={() => handleCardRadius(radiusToken)}
+                      className={chipClass(cardSettings.radius === radiusToken)}
+                    >
+                      {t(`cardControls.radii.${radiusToken}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("cardControls.shadowLabel")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={CARD_SHADOW_RANGE.min}
+                    max={CARD_SHADOW_RANGE.max}
+                    step="0.02"
+                    value={cardSettings.shadow}
+                    onChange={(event) =>
+                      handleCardShadow(Number(event.target.value))
+                    }
+                    className="w-full"
+                  />
+                  <span className="text-xs text-slate-300">
+                    {Math.round(cardSettings.shadow * 100)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t("sections.section")}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleVisibility("section")}
+                aria-label={
+                  visibility.section
+                    ? t("actions.hideSection")
+                    : t("actions.showSection")
+                }
+                title={
+                  visibility.section
+                    ? t("actions.hideSection")
+                    : t("actions.showSection")
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">
+                  {visibility.section
+                    ? t("icons.expanded")
+                    : t("icons.collapsed")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetSection}
+                aria-label={t("actions.resetSection")}
+                title={t("actions.resetSection")}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">{t("icons.reset")}</span>
+              </button>
+            </div>
+          </div>
+
+          {visibility.section ? (
+            <div className="grid gap-4">
+              <p className="text-sm text-slate-400">
+                {t("sectionControls.hint")}
+              </p>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("sectionControls.sizeLabel")}
+                </span>
+                <p className="text-xs text-slate-400">
+                  {t("sectionControls.sizeHint")}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {SECTION_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleSectionSize(size)}
+                      className={chipClass(sectionSettings.size === size)}
+                    >
+                      {t(`sectionControls.sizes.${size}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  {t("sectionControls.paddingLabel")}
+                </span>
+                <p className="text-xs text-slate-400">
+                  {t("sectionControls.paddingHint")}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {SECTION_PADDING_OPTIONS.map((padding) => (
+                    <button
+                      key={padding}
+                      type="button"
+                      onClick={() => handleSectionPadding(padding)}
+                      className={chipClass(sectionSettings.paddingY === padding)}
+                    >
+                      {t(`sectionControls.padding.${padding}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
         </div>
 
         <div className="flex flex-col gap-6">
-          <div
-            className="flex flex-col gap-6 rounded-3xl border p-6 shadow-xl"
+          <Card
+            className="sticky top-6 flex flex-col gap-6"
+            paddingToken={cardSettings.padding}
+            radiusToken={cardSettings.radius}
+            shadow={cardShadow}
             style={{
-              borderColor: "var(--uiux-neutral600)",
-              backgroundColor: "var(--uiux-neutral100)",
+              ...cardStyleVars,
               color: "var(--uiux-neutral900)",
+              gap: spaceVar("lg"),
             }}
           >
-            {visibility.colors ? (
-              <div className="flex items-center gap-3">
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]"
-                  style={{
-                    backgroundColor: "var(--uiux-accent)",
-                    color: "var(--uiux-neutral100)",
-                  }}
-                >
-                  {t("preview.badge")}
-                </span>
-                <span
-                  className="text-xs font-semibold uppercase tracking-[0.2em]"
-                  style={{ color: "var(--uiux-neutral600)" }}
-                >
-                  {t("preview.badgeNote")}
-                </span>
-              </div>
-            ) : null}
-            <div className="flex flex-col gap-2">
+            <div
+              className="flex items-center gap-3"
+              style={{ gap: spaceVar("sm") }}
+            >
+              <span
+                className="text-xs font-semibold uppercase tracking-[0.2em]"
+                style={{
+                  backgroundColor: "var(--uiux-accent)",
+                  color: "var(--uiux-neutral100)",
+                  borderRadius: radiusVar("xl"),
+                  padding: `${spaceVar("xs")} ${spaceVar("sm")}`,
+                }}
+              >
+                {t("preview.badge")}
+              </span>
+              <span
+                className="text-xs font-semibold uppercase tracking-[0.2em]"
+                style={{ color: "var(--uiux-neutral600)" }}
+              >
+                {t("preview.badgeNote")}
+              </span>
+            </div>
+            <div className="flex flex-col gap-2" style={{ gap: spaceVar("xs") }}>
               <h3 className="text-2xl font-semibold" style={getTypographyStyle("h3")}>
                 {t("preview.title")}
               </h3>
-              {visibility.colors ? (
-                <p
-                  style={{
-                    ...getTypographyStyle("body"),
-                    color: "var(--uiux-neutral600)",
-                  }}
-                >
-                  {t("preview.body")}
-                </p>
-              ) : null}
+              <p
+                style={{
+                  ...getTypographyStyle("body"),
+                  color: "var(--uiux-neutral600)",
+                }}
+              >
+                {t("preview.body")}
+              </p>
             </div>
-            {visibility.colors ? (
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rounded-full px-4 py-2 text-sm font-semibold"
-                  style={{
-                    backgroundColor: "var(--uiux-primary)",
-                    color: "var(--uiux-neutral100)",
-                  }}
-                >
-                  {t("preview.primaryButton")}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border px-4 py-2 text-sm font-semibold"
-                  style={{
-                    borderColor: "var(--uiux-secondary)",
-                    color: "var(--uiux-secondary)",
-                  }}
-                >
-                  {t("preview.secondaryButton")}
-                </button>
-              </div>
-            ) : null}
-            {visibility.colors ? (
-              <div className="grid gap-2">
-                <label
-                  className="text-sm font-semibold"
-                  htmlFor="token-email"
-                  style={getTypographyStyle("body")}
-                >
-                  {t("preview.inputLabel")}
-                </label>
-                <input
-                  id="token-email"
-                  type="email"
-                  placeholder={t("preview.inputPlaceholder")}
-                  className="rounded-2xl border px-4 py-3 text-sm"
-                  style={{
-                    borderColor: "var(--uiux-neutral600)",
-                    backgroundColor: "var(--uiux-neutral100)",
-                    color: "var(--uiux-neutral900)",
-                    fontSize: "var(--uiux-body-size)",
-                    lineHeight: "var(--uiux-body-line)",
-                    fontWeight: "var(--uiux-body-weight)",
-                  }}
-                />
-                <span
-                  className="text-xs"
-                  style={{
-                    ...getTypographyStyle("caption"),
-                    color: "var(--uiux-neutral600)",
-                  }}
-                >
-                  {t("preview.helper")}
-                </span>
-                <span
-                  className="text-xs"
-                  style={{
-                    ...getTypographyStyle("caption"),
-                    color: "var(--uiux-error)",
-                  }}
-                >
-                  {t("preview.error")}
-                </span>
-              </div>
-            ) : null}
+            <div className="flex flex-wrap gap-3" style={{ gap: spaceVar("sm") }}>
+              <Button
+                variant="primary"
+                size={buttonSettings.size}
+                radiusToken={buttonSettings.radius}
+                style={buttonStyleVars}
+              >
+                {t("preview.primaryButton")}
+              </Button>
+              <Button
+                variant="secondary"
+                size={buttonSettings.size}
+                radiusToken={buttonSettings.radius}
+                style={buttonStyleVars}
+              >
+                {t("preview.secondaryButton")}
+              </Button>
+            </div>
+            <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
+              <label
+                className="text-sm font-semibold"
+                htmlFor="token-email"
+                style={getTypographyStyle("body")}
+              >
+                {t("preview.inputLabel")}
+              </label>
+              <Input
+                id="token-email"
+                type="email"
+                placeholder={t("preview.inputPlaceholder")}
+                size={inputSettings.size}
+                radiusToken={inputSettings.radius}
+                style={inputStyleVars}
+              />
+              <span
+                className="text-xs"
+                style={{
+                  ...getTypographyStyle("caption"),
+                  color: "var(--uiux-neutral600)",
+                }}
+              >
+                {t("preview.helper")}
+              </span>
+              <span
+                className="text-xs"
+                style={{
+                  ...getTypographyStyle("caption"),
+                  color: "var(--uiux-error)",
+                }}
+              >
+                {t("preview.error")}
+              </span>
+            </div>
             {visibility.typography ? (
-              <div className="grid gap-2">
+              <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
                 <span className="text-sm font-semibold">
                   {t("typography.sample")}
                 </span>
-                <div className="grid gap-2">
+                <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
                   {TYPO_ORDER.map((key) => (
                     <span
                       key={key}
@@ -796,11 +2029,14 @@ export default function Tokens() {
               </div>
             ) : null}
             {visibility.spacing ? (
-              <div className="grid gap-2">
+              <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
                 <span className="text-sm font-semibold">
                   {t("spacing.sample")}
                 </span>
-                <div className="flex flex-wrap gap-2">
+                <div
+                  className="flex flex-wrap gap-2"
+                  style={{ gap: spaceVar("xs") }}
+                >
                   {SPACING_ORDER.map((key) => (
                     <div
                       key={key}
@@ -827,7 +2063,213 @@ export default function Tokens() {
                 </div>
               </div>
             ) : null}
-          </div>
+            {visibility.radius ? (
+              <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
+                <span className="text-sm font-semibold">
+                  {t("radius.sample")}
+                </span>
+                <div
+                  className="flex flex-wrap gap-2"
+                  style={{ gap: spaceVar("xs") }}
+                >
+                  {RADIUS_ORDER.map((key) => (
+                    <div
+                      key={key}
+                      className="border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]"
+                      style={{
+                        borderColor: "var(--uiux-neutral600)",
+                        borderRadius: `var(${toRadiusVarName(key)})`,
+                        color: "var(--uiux-neutral900)",
+                        padding: `${spaceVar("xs")} ${spaceVar("md")}`,
+                      }}
+                    >
+                      {t(`radius.steps.${key}.label`)} {radius[key]}
+                      {t("radius.unit")}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {visibility.button ? (
+              <div
+                className="grid gap-4 rounded-2xl border p-4"
+                style={{ borderColor: "var(--uiux-neutral600)" }}
+              >
+                <div className="flex flex-col gap-2">
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--uiux-neutral600)" }}
+                  >
+                    {t("uiKit.subtitle")}
+                  </p>
+                  <p className="text-xs text-slate-400">{t("uiKit.usage")}</p>
+                </div>
+                <div className="grid gap-4">
+                  {buttonVariants.map((variantItem) => (
+                    <div
+                      key={variantItem.key}
+                      className="grid gap-3 rounded-2xl border p-4"
+                      style={{ borderColor: "var(--uiux-neutral600)" }}
+                    >
+                      <h5 className="text-sm font-semibold uppercase tracking-[0.2em]">
+                        {t(`uiKit.variants.${variantItem.key}`)}
+                      </h5>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {buttonStates.map((stateItem) => (
+                          <div
+                            key={stateItem.key}
+                            className="flex flex-col gap-2"
+                          >
+                            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                              {t(`uiKit.states.${stateItem.key}`)}
+                            </span>
+                            <Button
+                              variant={variantItem.variant}
+                              size={buttonSettings.size}
+                              radiusToken={buttonSettings.radius}
+                              style={buttonStyleVars}
+                              previewState={
+                                stateItem.state === "disabled"
+                                  ? "default"
+                                  : stateItem.state
+                              }
+                              disabled={stateItem.state === "disabled"}
+                            >
+                              {t("uiKit.label")}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {visibility.input ? (
+              <div
+                className="grid gap-4 rounded-2xl border p-4"
+                style={{ borderColor: "var(--uiux-neutral600)" }}
+              >
+                <div className="flex flex-col gap-2">
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--uiux-neutral600)" }}
+                  >
+                    {t("uiKitInput.subtitle")}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {t("uiKitInput.usage")}
+                  </p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {inputStates.map((stateItem) => (
+                    <div key={stateItem.key} className="flex flex-col gap-2">
+                      <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                        {t(`uiKitInput.states.${stateItem.key}`)}
+                      </span>
+                      <Input
+                        placeholder={t("uiKitInput.placeholder")}
+                        size={inputSettings.size}
+                        radiusToken={inputSettings.radius}
+                        style={inputStyleVars}
+                        previewState={stateItem.previewState}
+                        disabled={stateItem.disabled}
+                        aria-label={t(`uiKitInput.states.${stateItem.key}`)}
+                      />
+                      {stateItem.key === "error" ? (
+                        <span
+                          className="text-xs"
+                          style={{
+                            ...getTypographyStyle("caption"),
+                            color: "var(--uiux-error)",
+                          }}
+                        >
+                          {t("uiKitInput.errorText")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {visibility.card ? (
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-2">
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--uiux-neutral600)" }}
+                  >
+                    {t("uiKitCard.subtitle")}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {t("uiKitCard.usage")}
+                  </p>
+                </div>
+                <Card
+                  className="flex flex-col gap-2"
+                  paddingToken={cardSettings.padding}
+                  radiusToken={cardSettings.radius}
+                  shadow={cardShadow}
+                  style={{
+                    ...cardStyleVars,
+                    color: "var(--uiux-neutral900)",
+                  }}
+                >
+                  <h5 className="text-base font-semibold">
+                    {t("uiKitCard.sampleTitle")}
+                  </h5>
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--uiux-neutral600)" }}
+                  >
+                    {t("uiKitCard.sampleBody")}
+                  </p>
+                </Card>
+              </div>
+            ) : null}
+            {visibility.section ? (
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-2">
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--uiux-neutral600)" }}
+                  >
+                    {t("uiKitSection.subtitle")}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {t("uiKitSection.usage")}
+                  </p>
+                </div>
+                <div
+                  className="rounded-2xl border border-dashed p-3"
+                  style={{ borderColor: "var(--uiux-neutral600)" }}
+                >
+                  <Section
+                    size={sectionSettings.size}
+                    paddingY={sectionSettings.paddingY}
+                    paddingX="lg"
+                    className="rounded-2xl border"
+                    style={{
+                      width: `${sectionPreviewWidth * 100}%`,
+                      maxWidth: "100%",
+                      backgroundColor: "var(--uiux-neutral100)",
+                      borderColor: "var(--uiux-neutral600)",
+                    }}
+                  >
+                    <h5 className="text-sm font-semibold">
+                      {t("uiKitSection.sampleTitle")}
+                    </h5>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--uiux-neutral600)" }}
+                    >
+                      {t("uiKitSection.sampleBody")}
+                    </p>
+                  </Section>
+                </div>
+              </div>
+            ) : null}
+          </Card>
           {t("footer") ? (
             <p className="text-sm text-slate-400">{t("footer")}</p>
           ) : null}

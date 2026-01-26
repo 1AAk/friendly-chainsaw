@@ -9,6 +9,7 @@
   "navigation": {
     "home": "Home",
     "library": "Library",
+    "screens": "Screens",
     "tokens": "UI Kit"
   }
 }

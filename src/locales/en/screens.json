@@ -1,0 +1,95 @@
+{
+  "tagline": "Stage 3",
+  "title": "Screen examples",
+  "subtitle": "Practice composition and layout on real UI patterns.",
+  "landing": {
+    "kicker": "Landing",
+    "title": "Build a strong first screen",
+    "subtitle": "Combine tokens, typography, and spacing into one clear hero section.",
+    "primary": "Request demo",
+    "secondary": "Download guide",
+    "highlights": [
+      { "value": "48h", "label": "setup" },
+      { "value": "12+", "label": "ready blocks" },
+      { "value": "100%", "label": "tokenized" },
+      { "value": "4", "label": "themes" }
+    ],
+    "sectionsTitle": "Why it works",
+    "sections": [
+      {
+        "title": "Clear hierarchy",
+        "body": "Kicker, headline, and CTA guide the eye in seconds."
+      },
+      {
+        "title": "Focused actions",
+        "body": "Primary and secondary buttons show the next best steps."
+      },
+      {
+        "title": "Measured rhythm",
+        "body": "Spacing tokens keep the layout balanced across screens."
+      }
+    ]
+  },
+  "grid": {
+    "kicker": "Card grid",
+    "title": "Solution catalog",
+    "subtitle": "Even spacing between cards and a consistent content rhythm.",
+    "items": [
+      {
+        "tag": "Composition",
+        "title": "Customer stories",
+        "body": "Use cards to group outcomes and highlight proof."
+      },
+      {
+        "tag": "States",
+        "title": "Live onboarding",
+        "body": "Show next steps and progress without overwhelming the user."
+      },
+      {
+        "tag": "Rhythm",
+        "title": "Release updates",
+        "body": "Short summaries help scan news quickly."
+      },
+      {
+        "tag": "UX",
+        "title": "Guided checklist",
+        "body": "Structure tasks so the user feels momentum."
+      },
+      {
+        "tag": "Delivery",
+        "title": "Team dashboard",
+        "body": "Keep key metrics visible at a glance."
+      },
+      {
+        "tag": "Support",
+        "title": "Help center",
+        "body": "Cards separate topics without losing context."
+      }
+    ]
+  },
+  "form": {
+    "kicker": "Form",
+    "title": "Contact request",
+    "subtitle": "Labels, helper text, and error states in one layout.",
+    "primary": "Send request",
+    "secondary": "Save draft",
+    "footer": "By submitting you agree to data processing.",
+    "fields": {
+      "name": {
+        "label": "Full name",
+        "placeholder": "e.g. Anna Petrova",
+        "helper": "Use the name you use in emails."
+      },
+      "email": {
+        "label": "Work email",
+        "placeholder": "you@example.com",
+        "error": "This email does not look valid."
+      },
+      "company": {
+        "label": "Company",
+        "placeholder": "Company name",
+        "helper": "We use it to tailor the demo."
+      }
+    }
+  }
+}

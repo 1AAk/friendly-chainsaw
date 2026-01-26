@@ -3,6 +3,41 @@
 Short session notes. Format: date, task (if any), key outcomes.
 
 ## Unreleased
+- 2026-01-26: Marked Stage 2 and UI Kit v0.1 as completed in the learning plan.
+- 2026-01-26: Aligned Library preview backgrounds/text to neutral100/neutral900 semantics.
+- 2026-01-26: Scoped UI Kit token styling to the Library preview window and restored the global app theme.
+- 2026-01-26: Applied stored token settings globally and retinted the Library page to use UI Kit palette variables.
+- 2026-01-26: Reworked the Library page into a full-page site-style demo and moved it after UI Kit in navigation.
+- 2026-01-26: Widened the Library layout and updated Section max widths for a broader page feel.
+- 2026-01-26: Added a basic UI Kit demo section to the Library page.
+- 2026-01-26: Added short usage notes for button, input, card, and section demos on the UI Kit page.
+- 2026-01-26: Added helper hints to the Section controls explaining width and vertical spacing.
+- 2026-01-26: Added section controls (width, vertical padding) and a section demo on the UI Kit page.
+- 2026-01-26: Linked card and input borders to the palette neutral600 token and removed separate border controls.
+- 2026-01-26: Linked the card background to the palette surface token (neutral100) and removed the separate background control.
+- 2026-01-26: Added card controls (padding, radius, background, border, shadow) and synced preview styling on the UI Kit page.
+- 2026-01-26: Added a Card component and a card demo block inside the preview card.
+- 2026-01-26: Added input controls (size, radius, border/focus/error colors) with live preview in the UI Kit page.
+- 2026-01-26: Added an input states demo inside the preview card, synced to the input toggle.
+- 2026-01-25: Synced UI Kit button preview visibility with the Button section toggle.
+- 2026-01-25: Added button reset and per-state customization controls (hover colors, focus ring, disabled opacity) in UI Kit.
+- 2026-01-25: Added editable hex inputs for palette colors in the UI Kit page.
+- 2026-01-25: Moved the button demo into the preview card and added button controls under the radius scale.
+- 2026-01-25: Moved the button demo from Library to the UI Kit (Tokens) page.
+- 2026-01-25: Added a Button component and button variants/states demo in the Library page.
+- 2026-01-25: Marked Stage 1 token tasks as in progress in LEARNING_PLAN.ru.md.
+- 2026-01-24: Moved background blobs into an overflow-hidden layer to unblock sticky preview.
+- 2026-01-24: Moved sticky positioning to the preview card for more reliable scrolling.
+- 2026-01-24: Switched app container to overflow-x-hidden to allow sticky preview behavior.
+- 2026-01-24: Made the preview panel sticky on large screens in the Tokens page.
+- 2026-01-24: Kept the preview card always visible while restoring toggle control for samples.
+- 2026-01-24: Kept the preview card and samples always visible regardless of section toggles.
+- 2026-01-24: Applied spacing and radius tokens to the preview card layout in the Tokens page.
+- 2026-01-24: Removed unfinished readability mode changes from the Tokens page.
+- 2026-01-24: Reverted the contrast check section from the Tokens page.
+- 2026-01-24: Added a contrast check section with live ratios on the Tokens page.
+- 2026-01-24: Updated radius scale hints on the Tokens page.
+- 2026-01-24: Added radius scale controls with preview and persistence on the Tokens page.
 - 2026-01-24: Removed the preview section heading from the Tokens page.
 - 2026-01-24: Collapsed preview body and form fields with the palette toggle.
 - 2026-01-24: Synced color preview elements with palette visibility toggle on Tokens page.
