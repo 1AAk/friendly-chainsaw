@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes } from "react";
 
 export type InputSize = "sm" | "md" | "lg";
-export type InputPreviewState = "default" | "focus" | "error";
+export type InputPreviewState = "default" | "focus" | "error" | "success";
 export type InputRadiusToken = "xs" | "sm" | "md" | "lg" | "xl";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
@@ -26,6 +26,8 @@ const PREVIEW_FOCUS =
   "ring-2 ring-[var(--uiux-input-focus,var(--uiux-accent,#F472B6))] ring-offset-2 ring-offset-slate-950";
 const ERROR_STYLES =
   "border-[var(--uiux-input-error,var(--uiux-error,#EF4444))] ring-2 ring-[var(--uiux-input-error,var(--uiux-error,#EF4444))] ring-offset-2 ring-offset-slate-950";
+const SUCCESS_STYLES =
+  "border-[var(--uiux-success,#22C55E)] ring-2 ring-[var(--uiux-success,#22C55E)] ring-offset-2 ring-offset-slate-950";
 
 export default function Input({
   size = "md",
@@ -38,6 +40,7 @@ export default function Input({
 }: InputProps) {
   const previewFocus = previewState === "focus" ? PREVIEW_FOCUS : "";
   const previewError = previewState === "error" ? ERROR_STYLES : "";
+  const previewSuccess = previewState === "success" ? SUCCESS_STYLES : "";
   const mergedStyle = radiusToken
     ? { ...style, borderRadius: `var(--uiux-radius-${radiusToken})` }
     : style;
@@ -45,7 +48,7 @@ export default function Input({
   return (
     <input
       type={type}
-      className={`${BASE_STYLES} ${BORDER_STYLES} ${FOCUS_RING} ${SIZE_STYLES[size]} ${previewFocus} ${previewError} ${className}`}
+      className={`${BASE_STYLES} ${BORDER_STYLES} ${FOCUS_RING} ${SIZE_STYLES[size]} ${previewFocus} ${previewError} ${previewSuccess} ${className}`}
       style={mergedStyle}
       {...props}
     />

@@ -1,4 +1,11 @@
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type MutableRefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button, {
@@ -19,6 +26,7 @@ import Section, {
   type SectionSize,
 } from "../components/Section";
 const STORAGE_KEY = "uiux-color-tokens";
+const LIGHT_STORAGE_KEY = "uiux-light-color-tokens";
 const TYPO_STORAGE_KEY = "uiux-typography-tokens";
 const SPACE_STORAGE_KEY = "uiux-spacing-tokens";
 const RADIUS_STORAGE_KEY = "uiux-radius-tokens";
@@ -27,6 +35,8 @@ const INPUT_STORAGE_KEY = "uiux-input-settings";
 const CARD_STORAGE_KEY = "uiux-card-settings";
 const SECTION_STORAGE_KEY = "uiux-section-settings";
 const VISIBILITY_STORAGE_KEY = "uiux-token-visibility";
+const INTERACTION_STORAGE_KEY = "uiux-interaction-settings";
+const PREVIEW_TONE_STORAGE_KEY = "uiux-preview-tone";
 
 const DEFAULT_TOKENS = {
   primary: "#F59E0B",
@@ -42,6 +52,7 @@ const DEFAULT_TOKENS = {
 type TokenKey = keyof typeof DEFAULT_TOKENS;
 
 type TokenMap = Record<TokenKey, string>;
+const DEFAULT_LIGHT_TOKENS: TokenMap = { ...DEFAULT_TOKENS };
 
 const DEFAULT_TYPOGRAPHY = {
   h1: { size: 48, line: 56, weight: 600 },
@@ -98,6 +109,20 @@ const DEFAULT_SECTION_SETTINGS = {
   paddingY: "xl",
 } as const;
 
+const DEFAULT_INTERACTION_SETTINGS = {
+  revealEnabled: true,
+  revealDuration: 420,
+  revealStagger: 90,
+  revealDistance: 18,
+  revealEasing: "soft",
+  hoverLift: 6,
+  hoverScale: 2,
+  hoverShadow: 0.22,
+  forceHover: false,
+  forceFocus: false,
+  forceError: false,
+} as const;
+
 const DEFAULT_VISIBILITY = {
   colors: true,
   typography: true,
@@ -107,6 +132,7 @@ const DEFAULT_VISIBILITY = {
   input: true,
   card: true,
   section: true,
+  interaction: true,
 } as const;
 
 type TypographyKey = keyof typeof DEFAULT_TYPOGRAPHY;
@@ -148,6 +174,27 @@ type SectionSettings = {
   paddingY: SectionPaddingToken;
 };
 type VisibilityMap = Record<keyof typeof DEFAULT_VISIBILITY, boolean>;
+type InteractionEasing = "soft" | "balanced" | "snappy";
+type InteractionSettings = {
+  revealEnabled: boolean;
+  revealDuration: number;
+  revealStagger: number;
+  revealDistance: number;
+  revealEasing: InteractionEasing;
+  hoverLift: number;
+  hoverScale: number;
+  hoverShadow: number;
+  forceHover: boolean;
+  forceFocus: boolean;
+  forceError: boolean;
+};
+
+type LabCard = {
+  title: string;
+  body: string;
+};
+
+type PreviewTone = "light" | "dark";
 
 const TOKEN_ORDER: TokenKey[] = [
   "primary",
@@ -213,8 +260,20 @@ const SECTION_PREVIEW_WIDTHS: Record<SectionSize, number> = {
   lg: 0.88,
   xl: 1,
 };
+const INTERACTION_EASINGS: Record<InteractionEasing, string> = {
+  soft: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+  balanced: "ease",
+  snappy: "cubic-bezier(0.3, 1, 0.3, 1)",
+};
+const PREVIEW_TONES: PreviewTone[] = ["light", "dark"];
 const BUTTON_OPACITY_RANGE = { min: 0.2, max: 1 };
 const CARD_SHADOW_RANGE = { min: 0, max: 0.35 };
+const REVEAL_DURATION_RANGE = { min: 200, max: 1200 };
+const REVEAL_STAGGER_RANGE = { min: 0, max: 240 };
+const REVEAL_DISTANCE_RANGE = { min: 8, max: 40 };
+const HOVER_LIFT_RANGE = { min: 0, max: 16 };
+const HOVER_SCALE_RANGE = { min: 0, max: 6 };
+const HOVER_SHADOW_RANGE = { min: 0, max: 0.4 };
 
 const SIZE_RANGE = { min: 10, max: 72 };
 const LINE_RANGE = { min: 12, max: 88 };
@@ -235,6 +294,15 @@ const normalizeHexInput = (value: string) => {
 };
 const buildCardShadow = (value: number) =>
   value <= 0 ? "none" : `0 24px 60px rgba(15, 23, 42, ${value})`;
+const buildInteractionShadow = (value: number) => {
+  if (value <= 0) {
+    return "none";
+  }
+
+  const darkAlpha = clamp(value + 0.08, 0, 0.6);
+  const lightAlpha = clamp(value * 0.35, 0, 0.35);
+  return `0 24px 60px rgba(15, 23, 42, ${darkAlpha}), 0 12px 30px rgba(248, 250, 252, ${lightAlpha})`;
+};
 const normalizeButtonHex = (value: unknown, fallback: string) => {
   if (typeof value !== "string") {
     return fallback;
@@ -354,6 +422,10 @@ const isSectionSize = (value: unknown): value is SectionSize =>
 const isSectionPadding = (value: unknown): value is SectionPaddingToken =>
   SECTION_PADDING_OPTIONS.includes(value as SectionPaddingToken);
 
+const isInteractionEasing = (
+  value: unknown,
+): value is InteractionEasing =>
+  typeof value === "string" && value in INTERACTION_EASINGS;
 
 const toCssVarName = (key: string) =>
   `--uiux-${key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}`;
@@ -411,6 +483,30 @@ const getStoredTokens = (): TokenMap => {
     return normalizeTokens(JSON.parse(raw));
   } catch {
     return { ...DEFAULT_TOKENS };
+  }
+};
+
+const getStoredLightTokens = (): TokenMap => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_LIGHT_TOKENS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LIGHT_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_LIGHT_TOKENS };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<TokenMap> | null;
+    const next: TokenMap = { ...DEFAULT_LIGHT_TOKENS };
+    TOKEN_ORDER.forEach((key) => {
+      if (typeof parsed?.[key] === "string") {
+        next[key] = parsed[key] as string;
+      }
+    });
+    return next;
+  } catch {
+    return { ...DEFAULT_LIGHT_TOKENS };
   }
 };
 
@@ -639,10 +735,103 @@ const getStoredVisibility = (): VisibilityMap => {
         typeof parsed?.section === "boolean"
           ? parsed.section
           : DEFAULT_VISIBILITY.section,
+      interaction:
+        typeof parsed?.interaction === "boolean"
+          ? parsed.interaction
+          : DEFAULT_VISIBILITY.interaction,
     };
   } catch {
     return { ...DEFAULT_VISIBILITY };
   }
+};
+
+const getStoredInteractionSettings = (): InteractionSettings => {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_INTERACTION_SETTINGS };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(INTERACTION_STORAGE_KEY);
+    if (!raw) {
+      return { ...DEFAULT_INTERACTION_SETTINGS };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<InteractionSettings> | null;
+    return {
+      revealEnabled:
+        typeof parsed?.revealEnabled === "boolean"
+          ? parsed.revealEnabled
+          : DEFAULT_INTERACTION_SETTINGS.revealEnabled,
+      revealDuration: Number.isFinite(Number(parsed?.revealDuration))
+        ? clamp(
+            Number(parsed?.revealDuration),
+            REVEAL_DURATION_RANGE.min,
+            REVEAL_DURATION_RANGE.max,
+          )
+        : DEFAULT_INTERACTION_SETTINGS.revealDuration,
+      revealStagger: Number.isFinite(Number(parsed?.revealStagger))
+        ? clamp(
+            Number(parsed?.revealStagger),
+            REVEAL_STAGGER_RANGE.min,
+            REVEAL_STAGGER_RANGE.max,
+          )
+        : DEFAULT_INTERACTION_SETTINGS.revealStagger,
+      revealDistance: Number.isFinite(Number(parsed?.revealDistance))
+        ? clamp(
+            Number(parsed?.revealDistance),
+            REVEAL_DISTANCE_RANGE.min,
+            REVEAL_DISTANCE_RANGE.max,
+          )
+        : DEFAULT_INTERACTION_SETTINGS.revealDistance,
+      revealEasing: isInteractionEasing(parsed?.revealEasing)
+        ? parsed.revealEasing
+        : DEFAULT_INTERACTION_SETTINGS.revealEasing,
+      hoverLift: Number.isFinite(Number(parsed?.hoverLift))
+        ? clamp(
+            Number(parsed?.hoverLift),
+            HOVER_LIFT_RANGE.min,
+            HOVER_LIFT_RANGE.max,
+          )
+        : DEFAULT_INTERACTION_SETTINGS.hoverLift,
+      hoverScale: Number.isFinite(Number(parsed?.hoverScale))
+        ? clamp(
+            Number(parsed?.hoverScale),
+            HOVER_SCALE_RANGE.min,
+            HOVER_SCALE_RANGE.max,
+          )
+        : DEFAULT_INTERACTION_SETTINGS.hoverScale,
+      hoverShadow: Number.isFinite(Number(parsed?.hoverShadow))
+        ? clamp(
+            Number(parsed?.hoverShadow),
+            HOVER_SHADOW_RANGE.min,
+            HOVER_SHADOW_RANGE.max,
+          )
+        : DEFAULT_INTERACTION_SETTINGS.hoverShadow,
+      forceHover:
+        typeof parsed?.forceHover === "boolean"
+          ? parsed.forceHover
+          : DEFAULT_INTERACTION_SETTINGS.forceHover,
+      forceFocus:
+        typeof parsed?.forceFocus === "boolean"
+          ? parsed.forceFocus
+          : DEFAULT_INTERACTION_SETTINGS.forceFocus,
+      forceError:
+        typeof parsed?.forceError === "boolean"
+          ? parsed.forceError
+          : DEFAULT_INTERACTION_SETTINGS.forceError,
+    };
+  } catch {
+    return { ...DEFAULT_INTERACTION_SETTINGS };
+  }
+};
+
+const getStoredPreviewTone = (): PreviewTone => {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const stored = window.localStorage.getItem(PREVIEW_TONE_STORAGE_KEY);
+  return stored === "dark" ? "dark" : "light";
 };
 
 const getTypographyStyle = (key: TypographyKey): CSSProperties => ({
@@ -654,6 +843,9 @@ const getTypographyStyle = (key: TypographyKey): CSSProperties => ({
 export default function Tokens() {
   const { t } = useTranslation("tokens");
   const [tokens, setTokens] = useState<TokenMap>(() => getStoredTokens());
+  const [lightTokens, setLightTokens] = useState<TokenMap>(() =>
+    getStoredLightTokens(),
+  );
   const [typography, setTypography] = useState<TypographyMap>(() =>
     getStoredTypography(),
   );
@@ -662,6 +854,9 @@ export default function Tokens() {
   );
   const [radius, setRadius] = useState<RadiusMap>(() => getStoredRadius());
   const [hexDrafts, setHexDrafts] = useState<TokenMap>(() => getStoredTokens());
+  const [lightHexDrafts, setLightHexDrafts] = useState<TokenMap>(() =>
+    getStoredLightTokens(),
+  );
   const [buttonSettings, setButtonSettings] = useState<ButtonSettings>(() =>
     getStoredButtonSettings(),
   );
@@ -690,6 +885,24 @@ export default function Tokens() {
   const [visibility, setVisibility] = useState<VisibilityMap>(() =>
     getStoredVisibility(),
   );
+  const [interactionSettings, setInteractionSettings] =
+    useState<InteractionSettings>(() => getStoredInteractionSettings());
+  const [previewTone, setPreviewTone] = useState<PreviewTone>(() =>
+    getStoredPreviewTone(),
+  );
+  const [interactionPlayKey, setInteractionPlayKey] = useState(0);
+  const [hoveredCardIndex, setHoveredCardIndex] = useState<number | null>(null);
+  const [hoveredLabButton, setHoveredLabButton] = useState<
+    "primary" | "confirm" | "play" | null
+  >(null);
+  const [isLabInputFocused, setIsLabInputFocused] = useState(false);
+  const [birthYear, setBirthYear] = useState("");
+  const [gender, setGender] = useState("");
+  const [email, setEmail] = useState("");
+  const [labErrorActive, setLabErrorActive] = useState(false);
+  const [labSuccessActive, setLabSuccessActive] = useState(false);
+  const errorTimeoutRef = useRef<number | null>(null);
+  const successTimeoutRef = useRef<number | null>(null);
   const buttonVariants = [
     { key: "primary", variant: "primary" },
     { key: "secondary", variant: "secondary" },
@@ -711,6 +924,10 @@ export default function Tokens() {
     { key: "error", previewState: "error" },
     { key: "disabled", previewState: "default", disabled: true },
   ];
+  const labCardsValue = t("interaction.preview.cards", { returnObjects: true });
+  const labCards = Array.isArray(labCardsValue)
+    ? (labCardsValue as LabCard[])
+    : [];
   const sectionPreviewWidth = SECTION_PREVIEW_WIDTHS[sectionSettings.size];
 
   const cssVars = useMemo(
@@ -721,6 +938,11 @@ export default function Tokens() {
       ...buildRadiusVars(radius),
     }),
     [tokens, typography, spacing, radius],
+  );
+  const previewTokens = previewTone === "light" ? lightTokens : tokens;
+  const previewTokenVars = useMemo(
+    () => buildCssVars(previewTokens),
+    [previewTokens],
   );
   const cssVarsStyle = cssVars as CSSProperties;
   const buttonStyleVars = useMemo(
@@ -748,11 +970,99 @@ export default function Tokens() {
   const cardStyleVars = useMemo(
     () =>
       ({
-        backgroundColor: "var(--uiux-neutral100)",
-        borderColor: "var(--uiux-neutral600)",
+        backgroundColor: "var(--uiux-preview-surface, var(--uiux-neutral100))",
+        borderColor: "var(--uiux-preview-border, var(--uiux-neutral600))",
       }) as CSSProperties,
     [],
   );
+  const isPreviewDark = previewTone === "dark";
+  const previewSurface = isPreviewDark
+    ? "var(--uiux-neutral900)"
+    : "var(--uiux-neutral100)";
+  const previewText = isPreviewDark
+    ? "var(--uiux-neutral100)"
+    : "var(--uiux-neutral900)";
+  const previewMuted = isPreviewDark
+    ? "color-mix(in srgb, var(--uiux-neutral100) 70%, transparent)"
+    : "var(--uiux-neutral600)";
+  const previewBorder = isPreviewDark
+    ? "color-mix(in srgb, var(--uiux-neutral100) 20%, transparent)"
+    : "var(--uiux-neutral600)";
+  const previewInputBg = isPreviewDark
+    ? "color-mix(in srgb, var(--uiux-neutral900) 88%, var(--uiux-neutral100))"
+    : "var(--uiux-neutral100)";
+  const previewInputText = isPreviewDark
+    ? "var(--uiux-neutral100)"
+    : "var(--uiux-neutral900)";
+  const previewInputPlaceholder = isPreviewDark
+    ? "color-mix(in srgb, var(--uiux-neutral100) 60%, transparent)"
+    : "var(--uiux-neutral600)";
+  const previewInputBorder = isPreviewDark
+    ? "color-mix(in srgb, var(--uiux-neutral100) 20%, transparent)"
+    : "var(--uiux-neutral600)";
+  const previewToneVars: CSSProperties = {
+    ["--uiux-preview-surface" as string]: previewSurface,
+    ["--uiux-preview-text" as string]: previewText,
+    ["--uiux-preview-muted" as string]: previewMuted,
+    ["--uiux-preview-border" as string]: previewBorder,
+    ["--uiux-input-bg" as string]: previewInputBg,
+    ["--uiux-input-text" as string]: previewInputText,
+    ["--uiux-input-placeholder" as string]: previewInputPlaceholder,
+    ["--uiux-input-border" as string]: previewInputBorder,
+  };
+  const revealTiming = INTERACTION_EASINGS[interactionSettings.revealEasing];
+  const hoverScaleValue = 1 + interactionSettings.hoverScale / 100;
+  const labHoverShadow = useMemo(
+    () => buildInteractionShadow(interactionSettings.hoverShadow),
+    [interactionSettings.hoverShadow],
+  );
+  const buttonHoverShadow = useMemo(
+    () =>
+      buildInteractionShadow(
+        Math.min(interactionSettings.hoverShadow, 0.24),
+      ),
+    [interactionSettings.hoverShadow],
+  );
+  const getRevealStyle = (index: number): CSSProperties =>
+    interactionSettings.revealEnabled
+      ? {
+          animationName: "uiux-reveal",
+          animationDuration: `${interactionSettings.revealDuration}ms`,
+          animationTimingFunction: revealTiming,
+          animationDelay: `${interactionSettings.revealStagger * index}ms`,
+          animationFillMode: "both",
+        }
+      : { opacity: 1, transform: "none" };
+
+  const clearLabTimeout = (ref: MutableRefObject<number | null>) => {
+    if (ref.current !== null) {
+      window.clearTimeout(ref.current);
+      ref.current = null;
+    }
+  };
+
+  const triggerLabState = (state: "error" | "success") => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    clearLabTimeout(errorTimeoutRef);
+    clearLabTimeout(successTimeoutRef);
+
+    if (state === "error") {
+      setLabSuccessActive(false);
+      setLabErrorActive(true);
+      errorTimeoutRef.current = window.setTimeout(() => {
+        setLabErrorActive(false);
+      }, 2000);
+    } else {
+      setLabErrorActive(false);
+      setLabSuccessActive(true);
+      successTimeoutRef.current = window.setTimeout(() => {
+        setLabSuccessActive(false);
+      }, 2000);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -760,6 +1070,7 @@ export default function Tokens() {
     }
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
+    window.localStorage.setItem(LIGHT_STORAGE_KEY, JSON.stringify(lightTokens));
     window.localStorage.setItem(TYPO_STORAGE_KEY, JSON.stringify(typography));
     window.localStorage.setItem(SPACE_STORAGE_KEY, JSON.stringify(spacing));
     window.localStorage.setItem(RADIUS_STORAGE_KEY, JSON.stringify(radius));
@@ -767,11 +1078,25 @@ export default function Tokens() {
     Object.entries(cssVars).forEach(([key, value]) => {
       root.style.setProperty(key, value);
     });
-  }, [tokens, typography, spacing, radius, cssVars]);
+  }, [tokens, lightTokens, typography, spacing, radius, cssVars]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      clearLabTimeout(errorTimeoutRef);
+      clearLabTimeout(successTimeoutRef);
+    };
+  }, []);
 
   useEffect(() => {
     setHexDrafts(tokens);
   }, [tokens]);
+
+  useEffect(() => {
+    setLightHexDrafts(lightTokens);
+  }, [lightTokens]);
 
   useEffect(() => {
     setButtonHexDrafts({
@@ -861,6 +1186,25 @@ export default function Tokens() {
     );
   }, [sectionSettings]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      INTERACTION_STORAGE_KEY,
+      JSON.stringify(interactionSettings),
+    );
+  }, [interactionSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(PREVIEW_TONE_STORAGE_KEY, previewTone);
+  }, [previewTone]);
+
   const handleChange = (key: TokenKey, value: string) => {
     const nextValue = value.toUpperCase();
     setTokens((prev) => ({
@@ -890,8 +1234,75 @@ export default function Tokens() {
     }));
   };
 
+  const handleLightChange = (key: TokenKey, value: string) => {
+    const nextValue = value.toUpperCase();
+    setLightTokens((prev) => ({
+      ...prev,
+      [key]: nextValue,
+    }));
+  };
+
+  const handleLightHexChange = (key: TokenKey, value: string) => {
+    const normalized = normalizeHexInput(value);
+    setLightHexDrafts((prev) => ({
+      ...prev,
+      [key]: normalized,
+    }));
+    if (isValidHex(normalized)) {
+      setLightTokens((prev) => ({
+        ...prev,
+        [key]: normalized,
+      }));
+    }
+  };
+
+  const handleLightHexBlur = (key: TokenKey) => {
+    setLightHexDrafts((prev) => ({
+      ...prev,
+      [key]: isValidHex(prev[key]) ? prev[key] : lightTokens[key],
+    }));
+  };
+
+  const handleEyeDropperPick = async (tone: "light" | "dark", key: TokenKey) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const EyeDropperCtor = (window as Window & { EyeDropper?: any }).EyeDropper;
+    if (!EyeDropperCtor) {
+      const fallback = document.getElementById(
+        `${tone}-color-${key}`,
+      ) as HTMLInputElement | null;
+      fallback?.click();
+      return;
+    }
+
+    try {
+      const picker = new EyeDropperCtor();
+      const result = await picker.open();
+      const nextValue =
+        typeof result?.sRGBHex === "string"
+          ? result.sRGBHex.toUpperCase()
+          : null;
+      if (!nextValue) {
+        return;
+      }
+      if (tone === "light") {
+        setLightTokens((prev) => ({ ...prev, [key]: nextValue }));
+      } else {
+        setTokens((prev) => ({ ...prev, [key]: nextValue }));
+      }
+    } catch {
+      // ignore cancel
+    }
+  };
+
   const handleResetColors = () => {
     setTokens({ ...DEFAULT_TOKENS });
+  };
+
+  const handleResetLightColors = () => {
+    setLightTokens({ ...DEFAULT_LIGHT_TOKENS });
   };
 
   const handleResetTypography = () => {
@@ -1060,6 +1471,44 @@ export default function Tokens() {
     setSectionSettings((prev) => ({ ...prev, paddingY }));
   };
 
+  const handleInteractionToggle = (key: keyof InteractionSettings) => {
+    setInteractionSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleInteractionNumber = (
+    key: keyof InteractionSettings,
+    value: number,
+  ) => {
+    setInteractionSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleInteractionEasing = (value: InteractionEasing) => {
+    setInteractionSettings((prev) => ({ ...prev, revealEasing: value }));
+  };
+
+  const handleResetInteraction = () => {
+    setInteractionSettings({ ...DEFAULT_INTERACTION_SETTINGS });
+  };
+
+  const resetPreviewForm = () => {
+    setBirthYear("");
+    setGender("");
+    setEmail("");
+    setIsLabInputFocused(false);
+    setLabErrorActive(false);
+    setLabSuccessActive(false);
+    if (typeof window !== "undefined") {
+      clearLabTimeout(errorTimeoutRef);
+      clearLabTimeout(successTimeoutRef);
+    }
+  };
+
+  const SELECT_SIZE_STYLES: Record<InputSize, string> = {
+    sm: "text-[var(--uiux-body-size,16px)] px-[var(--uiux-space-md,12px)] py-[var(--uiux-space-xs,4px)]",
+    md: "text-[var(--uiux-body-size,16px)] px-[var(--uiux-space-lg,16px)] py-[var(--uiux-space-sm,8px)]",
+    lg: "text-[var(--uiux-body-size,16px)] px-[var(--uiux-space-xl,24px)] py-[var(--uiux-space-md,12px)]",
+  };
+
   const chipClass = (active: boolean) =>
     `rounded-full border px-3 py-1 text-xs uppercase tracking-[0.2em] transition ${
       active
@@ -1067,9 +1516,57 @@ export default function Tokens() {
         : "border-slate-800 text-slate-300 hover:border-slate-600"
     }`;
 
+  const showLabButtonHoverPrimary =
+    interactionSettings.forceHover || hoveredLabButton === "primary";
+  const showLabButtonHoverConfirm =
+    interactionSettings.forceHover || hoveredLabButton === "confirm";
+  const showLabButtonHoverPlay =
+    interactionSettings.forceHover || hoveredLabButton === "play";
+  const showLabFocus = interactionSettings.forceFocus || isLabInputFocused;
+  const showLabError = labErrorActive;
+  const showLabSuccess = labSuccessActive;
+  const isFormComplete =
+    birthYear.trim().length > 0 &&
+    gender.trim().length > 0 &&
+    email.trim().length > 0;
+  const showConfirmHover = showLabButtonHoverConfirm && isFormComplete;
+  const labInputState: InputPreviewState = showLabError
+    ? "error"
+    : showLabSuccess
+      ? "success"
+      : showLabFocus
+        ? "focus"
+        : "default";
+  const getHoverTransform = (active: boolean) =>
+    active
+      ? `translateY(-${interactionSettings.hoverLift}px) scale(${hoverScaleValue})`
+      : "translateY(0) scale(1)";
+  const getCardHoverStyle = (active: boolean): CSSProperties => ({
+    transform: getHoverTransform(active),
+    boxShadow: active ? labHoverShadow : cardShadow,
+    transition: `transform 180ms ${revealTiming}, box-shadow 180ms ${revealTiming}`,
+  });
+  const getButtonHoverStyle = (active: boolean): CSSProperties => ({
+    transform: getHoverTransform(active),
+    boxShadow: active ? buttonHoverShadow : "none",
+    transition: `transform 180ms ${revealTiming}, box-shadow 180ms ${revealTiming}`,
+  });
+
 
   return (
     <div className="flex flex-col gap-10" style={cssVarsStyle}>
+      <style>{`
+        @keyframes uiux-reveal {
+          from {
+            opacity: 0;
+            transform: translateY(var(--uiux-reveal-distance, 16px));
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
       <section className="flex flex-col gap-6 motion-safe:animate-fade-in">
         <p className="text-sm uppercase tracking-[0.3em] text-amber-200">
           {t("tagline")}
@@ -1083,7 +1580,7 @@ export default function Tokens() {
       <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="flex flex-col gap-6 lg:self-start">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-semibold">{t("sections.picker")}</h2>
+            <h2 className="text-xl font-semibold">{t("sections.lightPicker")}</h2>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -1108,9 +1605,9 @@ export default function Tokens() {
               </button>
               <button
                 type="button"
-                onClick={handleResetColors}
-                aria-label={t("actions.resetColors")}
-                title={t("actions.resetColors")}
+                onClick={handleResetLightColors}
+                aria-label={t("actions.resetLightColors")}
+                title={t("actions.resetLightColors")}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
               >
                 <span aria-hidden="true">{t("icons.reset")}</span>
@@ -1119,45 +1616,159 @@ export default function Tokens() {
           </div>
 
           {visibility.colors ? (
-            <div className="grid gap-4">
-              {TOKEN_ORDER.map((key) => (
-                <div
-                  key={key}
-                  className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
+            <div className="grid gap-6">
+              <div className="grid gap-4">
+                {TOKEN_ORDER.map((key) => (
+                  <div
+                    key={`light-${key}`}
+                    className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-semibold">
+                        {t(`fields.${key}.label`)}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {t(`fields.${key}.hint`)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="relative h-10 w-10 overflow-hidden rounded-full border border-slate-700"
+                        style={{ backgroundColor: lightTokens[key] }}
+                        title={t(`fields.${key}.label`)}
+                      >
+                        <input
+                          id={`light-color-${key}`}
+                          type="color"
+                          value={lightTokens[key]}
+                          onChange={(event) =>
+                            handleLightChange(key, event.target.value)
+                          }
+                          className="absolute inset-0 cursor-pointer opacity-0"
+                          aria-label={t(`fields.${key}.label`)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleEyeDropperPick("light", key)}
+                          onMouseDown={(event) => event.preventDefault()}
+                          className="absolute left-1/2 top-1/2 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/40 text-white transition hover:border-white/70"
+                          aria-label={t("actions.pickColor")}
+                          title={t("actions.pickColor")}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 3.5l8.5 8.5-3 3-8.5-8.5z" />
+                            <path d="M3.5 12l5.1-5.1" />
+                            <path d="M14.5 6.5l3 3" />
+                            <path d="M5 19h6" />
+                          </svg>
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={lightHexDrafts[key]}
+                        onChange={(event) =>
+                          handleLightHexChange(key, event.target.value)
+                        }
+                        onBlur={() => handleLightHexBlur(key)}
+                        className="w-24 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                        aria-label={t(`fields.${key}.label`)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-lg font-semibold">
+                  {t("sections.picker")}
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleResetColors}
+                  aria-label={t("actions.resetColors")}
+                  title={t("actions.resetColors")}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm font-semibold">
-                      {t(`fields.${key}.label`)}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {t(`fields.${key}.hint`)}
-                    </span>
+                  <span aria-hidden="true">{t("icons.reset")}</span>
+                </button>
+              </div>
+              <div className="grid gap-4">
+                {TOKEN_ORDER.map((key) => (
+                  <div
+                    key={key}
+                    className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-semibold">
+                        {t(`fields.${key}.label`)}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {t(`fields.${key}.hint`)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="relative h-10 w-10 overflow-hidden rounded-full border border-slate-700"
+                        style={{ backgroundColor: tokens[key] }}
+                        title={t(`fields.${key}.label`)}
+                      >
+                        <input
+                          id={`dark-color-${key}`}
+                          type="color"
+                          value={tokens[key]}
+                          onChange={(event) =>
+                            handleChange(key, event.target.value)
+                          }
+                          className="absolute inset-0 cursor-pointer opacity-0"
+                          aria-label={t(`fields.${key}.label`)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleEyeDropperPick("dark", key)}
+                          onMouseDown={(event) => event.preventDefault()}
+                          className="absolute left-1/2 top-1/2 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/40 text-white transition hover:border-white/70"
+                          aria-label={t("actions.pickColor")}
+                          title={t("actions.pickColor")}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 3.5l8.5 8.5-3 3-8.5-8.5z" />
+                            <path d="M3.5 12l5.1-5.1" />
+                            <path d="M14.5 6.5l3 3" />
+                            <path d="M5 19h6" />
+                          </svg>
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={hexDrafts[key]}
+                        onChange={(event) =>
+                          handleHexChange(key, event.target.value)
+                        }
+                        onBlur={() => handleHexBlur(key)}
+                        className="w-24 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
+                        aria-label={t(`fields.${key}.label`)}
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="h-10 w-10 rounded-full border border-slate-700"
-                      style={{ backgroundColor: tokens[key] }}
-                    />
-                    <input
-                      type="color"
-                      value={tokens[key]}
-                      onChange={(event) => handleChange(key, event.target.value)}
-                      className="h-10 w-10 cursor-pointer rounded-full border border-slate-700 bg-transparent"
-                      aria-label={t(`fields.${key}.label`)}
-                    />
-                    <input
-                      type="text"
-                      value={hexDrafts[key]}
-                      onChange={(event) =>
-                        handleHexChange(key, event.target.value)
-                      }
-                      onBlur={() => handleHexBlur(key)}
-                      className="w-24 rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
-                      aria-label={t(`fields.${key}.label`)}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -1906,6 +2517,259 @@ export default function Tokens() {
             </div>
           ) : null}
 
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t("interaction.title")}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleVisibility("interaction")}
+                aria-label={
+                  visibility.interaction
+                    ? t("actions.hideInteraction")
+                    : t("actions.showInteraction")
+                }
+                title={
+                  visibility.interaction
+                    ? t("actions.hideInteraction")
+                    : t("actions.showInteraction")
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">
+                  {visibility.interaction
+                    ? t("icons.expanded")
+                    : t("icons.collapsed")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetInteraction}
+                aria-label={t("interaction.actions.reset")}
+                title={t("interaction.actions.reset")}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-300 transition hover:border-slate-500"
+              >
+                <span aria-hidden="true">{t("icons.reset")}</span>
+              </button>
+            </div>
+          </div>
+
+          {visibility.interaction ? (
+            <div className="grid gap-4">
+              <p className="text-sm text-slate-400">
+                {t("interaction.subtitle")}
+              </p>
+              <div className="grid gap-4 rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-semibold">
+                      {t("interaction.controls.reveal.title")}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {t("interaction.controls.reveal.hint")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleInteractionToggle("revealEnabled")}
+                    className={chipClass(interactionSettings.revealEnabled)}
+                  >
+                    {t("interaction.controls.reveal.toggle")}
+                  </button>
+                </div>
+                <div className="grid gap-3">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.reveal.duration")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={REVEAL_DURATION_RANGE.min}
+                      max={REVEAL_DURATION_RANGE.max}
+                      step="20"
+                      value={interactionSettings.revealDuration}
+                      onChange={(event) =>
+                        handleInteractionNumber(
+                          "revealDuration",
+                          Number(event.target.value),
+                        )
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs text-slate-300">
+                      {interactionSettings.revealDuration}
+                      {t("interaction.units.ms")}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.reveal.stagger")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={REVEAL_STAGGER_RANGE.min}
+                      max={REVEAL_STAGGER_RANGE.max}
+                      step="10"
+                      value={interactionSettings.revealStagger}
+                      onChange={(event) =>
+                        handleInteractionNumber(
+                          "revealStagger",
+                          Number(event.target.value),
+                        )
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs text-slate-300">
+                      {interactionSettings.revealStagger}
+                      {t("interaction.units.ms")}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.reveal.distance")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={REVEAL_DISTANCE_RANGE.min}
+                      max={REVEAL_DISTANCE_RANGE.max}
+                      step="2"
+                      value={interactionSettings.revealDistance}
+                      onChange={(event) =>
+                        handleInteractionNumber(
+                          "revealDistance",
+                          Number(event.target.value),
+                        )
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs text-slate-300">
+                      {interactionSettings.revealDistance}
+                      {t("interaction.units.px")}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.reveal.easing")}
+                  </span>
+                  <select
+                    value={interactionSettings.revealEasing}
+                    onChange={(event) =>
+                      handleInteractionEasing(
+                        event.target.value as InteractionEasing,
+                      )
+                    }
+                    className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-200"
+                  >
+                    {Object.keys(INTERACTION_EASINGS).map((key) => (
+                      <option key={key} value={key}>
+                        {t(`interaction.easing.${key}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-semibold">
+                      {t("interaction.controls.hover.title")}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {t("interaction.controls.hover.hint")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleInteractionToggle("forceHover")}
+                    className={chipClass(interactionSettings.forceHover)}
+                  >
+                    {t("interaction.controls.hover.toggle")}
+                  </button>
+                </div>
+                <div className="grid gap-3">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.hover.lift")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={HOVER_LIFT_RANGE.min}
+                      max={HOVER_LIFT_RANGE.max}
+                      step="1"
+                      value={interactionSettings.hoverLift}
+                      onChange={(event) =>
+                        handleInteractionNumber(
+                          "hoverLift",
+                          Number(event.target.value),
+                        )
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs text-slate-300">
+                      {interactionSettings.hoverLift}
+                      {t("interaction.units.px")}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.hover.scale")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={HOVER_SCALE_RANGE.min}
+                      max={HOVER_SCALE_RANGE.max}
+                      step="0.5"
+                      value={interactionSettings.hoverScale}
+                      onChange={(event) =>
+                        handleInteractionNumber(
+                          "hoverScale",
+                          Number(event.target.value),
+                        )
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs text-slate-300">
+                      {interactionSettings.hoverScale}
+                      {t("interaction.units.percent")}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    {t("interaction.controls.hover.shadow")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={HOVER_SHADOW_RANGE.min}
+                      max={HOVER_SHADOW_RANGE.max}
+                      step="0.02"
+                      value={interactionSettings.hoverShadow}
+                      onChange={(event) =>
+                        handleInteractionNumber(
+                          "hoverShadow",
+                          Number(event.target.value),
+                        )
+                      }
+                      className="w-full"
+                    />
+                    <span className="text-xs text-slate-300">
+                      {Math.round(interactionSettings.hoverShadow * 100)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          ) : null}
+
         </div>
 
         <div className="flex flex-col gap-6">
@@ -1916,31 +2780,96 @@ export default function Tokens() {
             shadow={cardShadow}
             style={{
               ...cardStyleVars,
-              color: "var(--uiux-neutral900)",
+              ...previewTokenVars,
+              ...previewToneVars,
+              color: "var(--uiux-preview-text, var(--uiux-neutral900))",
               gap: spaceVar("lg"),
+              ["--uiux-reveal-distance" as string]: `${interactionSettings.revealDistance}px`,
             }}
           >
             <div
-              className="flex items-center gap-3"
+              className="flex flex-wrap items-center justify-between gap-3"
               style={{ gap: spaceVar("sm") }}
             >
-              <span
-                className="text-xs font-semibold uppercase tracking-[0.2em]"
-                style={{
-                  backgroundColor: "var(--uiux-accent)",
-                  color: "var(--uiux-neutral100)",
-                  borderRadius: radiusVar("xl"),
-                  padding: `${spaceVar("xs")} ${spaceVar("sm")}`,
-                }}
-              >
-                {t("preview.badge")}
-              </span>
-              <span
-                className="text-xs font-semibold uppercase tracking-[0.2em]"
-                style={{ color: "var(--uiux-neutral600)" }}
-              >
-                {t("preview.badgeNote")}
-              </span>
+              <div className="flex items-center gap-3">
+                <span
+                  className="text-xs font-semibold uppercase tracking-[0.2em]"
+                  style={{
+                    backgroundColor: "var(--uiux-accent)",
+                    color: "var(--uiux-neutral100)",
+                    borderRadius: radiusVar("xl"),
+                    padding: `${spaceVar("xs")} ${spaceVar("sm")}`,
+                  }}
+                >
+                  {t("preview.badge")}
+                </span>
+                <span
+                  className="text-xs font-semibold uppercase tracking-[0.2em]"
+                  style={{ color: "var(--uiux-preview-muted, var(--uiux-neutral600))" }}
+                >
+                  {t("preview.badgeNote")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="sr-only">{t("preview.tone.label")}</span>
+                <div className="flex items-center gap-1 rounded-full border p-1"
+                  style={{
+                    borderColor: "var(--uiux-preview-border, var(--uiux-neutral600))",
+                  }}
+                >
+                  {PREVIEW_TONES.map((tone) => {
+                    const isActive = tone === previewTone;
+                    const isLight = tone === "light";
+                    return (
+                      <button
+                        key={tone}
+                        type="button"
+                        onClick={() => setPreviewTone(tone)}
+                        aria-label={t(`preview.tone.${tone}`)}
+                        className="flex h-7 w-7 items-center justify-center rounded-full border transition"
+                        style={{
+                          borderColor: "transparent",
+                          backgroundColor: isActive
+                            ? "var(--uiux-accent)"
+                            : "transparent",
+                          color: isActive
+                            ? "var(--uiux-neutral100)"
+                            : "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                        }}
+                      >
+                        {isLight ? (
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <circle cx="12" cy="12" r="4.2" />
+                            <path d="M12 3.2v2.1M12 18.7v2.1M4.2 12h2.1M17.7 12h2.1M6.2 6.2l1.5 1.5M16.3 16.3l1.5 1.5M6.2 17.8l1.5-1.5M16.3 7.7l1.5-1.5" />
+                          </svg>
+                        ) : (
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3a7.1 7.1 0 1 0 11.5 11.5Z" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <div className="flex flex-col gap-2" style={{ gap: spaceVar("xs") }}>
               <h3 className="text-2xl font-semibold" style={getTypographyStyle("h3")}>
@@ -1949,7 +2878,7 @@ export default function Tokens() {
               <p
                 style={{
                   ...getTypographyStyle("body"),
-                  color: "var(--uiux-neutral600)",
+                  color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
                 }}
               >
                 {t("preview.body")}
@@ -1960,54 +2889,219 @@ export default function Tokens() {
                 variant="primary"
                 size={buttonSettings.size}
                 radiusToken={buttonSettings.radius}
-                style={buttonStyleVars}
+                previewState={showLabButtonHoverPrimary ? "hover" : "default"}
+                onMouseEnter={() => setHoveredLabButton("primary")}
+                onMouseLeave={() => setHoveredLabButton(null)}
+                onClick={() => triggerLabState("error")}
+                style={{
+                  ...buttonStyleVars,
+                  ...getButtonHoverStyle(showLabButtonHoverPrimary),
+                  ...(isPreviewDark ? { color: "var(--uiux-neutral900)" } : {}),
+                }}
               >
-                {t("preview.primaryButton")}
+                {t("interaction.controls.focus.error")}
               </Button>
               <Button
                 variant="secondary"
                 size={buttonSettings.size}
                 radiusToken={buttonSettings.radius}
-                style={buttonStyleVars}
+                previewState={showLabButtonHoverPlay ? "hover" : "default"}
+                onMouseEnter={() => setHoveredLabButton("play")}
+                onMouseLeave={() => setHoveredLabButton(null)}
+                onClick={() => {
+                  setInteractionPlayKey((prev) => prev + 1);
+                  resetPreviewForm();
+                }}
+                style={{
+                  ...buttonStyleVars,
+                  ...getButtonHoverStyle(showLabButtonHoverPlay),
+                  ...(showLabButtonHoverPlay && isPreviewDark
+                    ? { color: "var(--uiux-neutral900)" }
+                    : {}),
+                }}
               >
-                {t("preview.secondaryButton")}
+                {t("interaction.actions.reset")}
               </Button>
             </div>
-            <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
-              <label
-                className="text-sm font-semibold"
-                htmlFor="token-email"
-                style={getTypographyStyle("body")}
+            <>
+              <div
+                className="grid gap-4 md:grid-cols-3"
+                style={{ gap: spaceVar("md") }}
               >
-                {t("preview.inputLabel")}
-              </label>
-              <Input
-                id="token-email"
-                type="email"
-                placeholder={t("preview.inputPlaceholder")}
-                size={inputSettings.size}
-                radiusToken={inputSettings.radius}
-                style={inputStyleVars}
-              />
-              <span
-                className="text-xs"
+                {labCards.map((item, index) => {
+                  const isHovered =
+                    interactionSettings.forceHover ||
+                    hoveredCardIndex === index;
+                  return (
+                    <div
+                      key={`${interactionPlayKey}-preview-${index}`}
+                      style={getRevealStyle(index)}
+                    >
+                      <Card
+                        paddingToken="lg"
+                        radiusToken="xl"
+                        className="border"
+                        onMouseEnter={() => setHoveredCardIndex(index)}
+                        onMouseLeave={() => setHoveredCardIndex(null)}
+                        style={{
+                          ...cardStyleVars,
+                          color: "var(--uiux-preview-text, var(--uiux-neutral900))",
+                          ...getCardHoverStyle(isHovered),
+                        }}
+                      >
+                        <h5 className="text-sm font-semibold">
+                          {item.title}
+                        </h5>
+                        <p
+                          className="text-xs"
+                          style={{
+                            color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                          }}
+                        >
+                          {item.body}
+                        </p>
+                      </Card>
+                    </div>
+                  );
+                })}
+              </div>
+              <div
+                className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]"
+                key={`preview-form-${interactionPlayKey}`}
                 style={{
-                  ...getTypographyStyle("caption"),
-                  color: "var(--uiux-neutral600)",
+                  gap: spaceVar("lg"),
+                  ...getRevealStyle(labCards.length + 1),
                 }}
               >
-                {t("preview.helper")}
-              </span>
-              <span
-                className="text-xs"
-                style={{
-                  ...getTypographyStyle("caption"),
-                  color: "var(--uiux-error)",
-                }}
-              >
-                {t("preview.error")}
-              </span>
-            </div>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <span
+                      className="text-xs uppercase tracking-[0.2em] text-slate-400"
+                      style={{ color: "var(--uiux-preview-muted, var(--uiux-neutral600))" }}
+                    >
+                      {t("interaction.preview.profileTitle")}
+                    </span>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1">
+                        <span
+                          className="text-[10px] uppercase tracking-[0.2em] text-slate-400"
+                          style={{ color: "var(--uiux-preview-muted, var(--uiux-neutral600))" }}
+                        >
+                          {t("interaction.preview.yearLabel")}
+                        </span>
+                        <Input
+                          type="number"
+                          placeholder={t("interaction.preview.yearPlaceholder")}
+                          size={inputSettings.size}
+                          radiusToken={inputSettings.radius}
+                          value={birthYear}
+                          onFocus={() => {
+                            if (!birthYear.trim()) {
+                              setBirthYear("1998");
+                            }
+                          }}
+                          onChange={(event) => setBirthYear(event.target.value)}
+                          style={inputStyleVars}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span
+                          className="text-[10px] uppercase tracking-[0.2em] text-slate-400"
+                          style={{ color: "var(--uiux-preview-muted, var(--uiux-neutral600))" }}
+                        >
+                          {t("interaction.preview.genderLabel")}
+                        </span>
+                        <select
+                          value={gender}
+                          onChange={(event) => setGender(event.target.value)}
+                          className={`w-full border border-[var(--uiux-input-border,var(--uiux-neutral600,#475569))] bg-[var(--uiux-input-bg,var(--uiux-neutral100,#F8FAFC))] text-[var(--uiux-input-text,var(--uiux-neutral900,#0F172A))] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--uiux-input-focus,var(--uiux-accent,#F472B6))] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${SELECT_SIZE_STYLES[inputSettings.size]}`}
+                          style={{
+                            ...inputStyleVars,
+                            borderRadius: `var(--uiux-radius-${inputSettings.radius})`,
+                          }}
+                        >
+                          <option value="">
+                            {t("interaction.preview.genderPlaceholder")}
+                          </option>
+                          <option value="female">
+                            {t("interaction.preview.genderOptions.female")}
+                          </option>
+                          <option value="male">
+                            {t("interaction.preview.genderOptions.male")}
+                          </option>
+                          <option value="other">
+                            {t("interaction.preview.genderOptions.other")}
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+                    <p
+                      className="text-xs text-slate-400"
+                      style={{ color: "var(--uiux-preview-muted, var(--uiux-neutral600))" }}
+                    >
+                      {t("interaction.preview.profileHint")}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span
+                      className="text-xs uppercase tracking-[0.2em] text-slate-400"
+                      style={{ color: "var(--uiux-preview-muted, var(--uiux-neutral600))" }}
+                    >
+                      {t("interaction.preview.inputLabel")}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder={t("interaction.preview.inputPlaceholder")}
+                        size={inputSettings.size}
+                        radiusToken={inputSettings.radius}
+                        previewState={labInputState}
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        onFocus={() => setIsLabInputFocused(true)}
+                        onBlur={() => setIsLabInputFocused(false)}
+                        style={inputStyleVars}
+                        className="w-auto min-w-[160px] flex-1"
+                      />
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        radiusToken={buttonSettings.radius}
+                        previewState={showConfirmHover ? "hover" : "default"}
+                        onMouseEnter={() => setHoveredLabButton("confirm")}
+                        onMouseLeave={() => setHoveredLabButton(null)}
+                        onClick={() => {
+                          if (!isFormComplete) {
+                            return;
+                          }
+                          triggerLabState("success");
+                        }}
+                        style={{
+                          ...buttonStyleVars,
+                          ...getButtonHoverStyle(showConfirmHover),
+                          ...(isPreviewDark ? { color: "var(--uiux-neutral900)" } : {}),
+                        }}
+                        disabled={!isFormComplete}
+                      >
+                        {t("interaction.preview.confirm")}
+                      </Button>
+                    </div>
+                    {showLabError ? (
+                      <span className="text-xs" style={{ color: "var(--uiux-error)" }}>
+                        {t("interaction.preview.error")}
+                      </span>
+                    ) : showLabSuccess ? (
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--uiux-success)" }}
+                      >
+                        {t("interaction.preview.success")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div />
+              </div>
+            </>
             {visibility.typography ? (
               <div className="grid gap-2" style={{ gap: spaceVar("xs") }}>
                 <span className="text-sm font-semibold">
@@ -2019,7 +3113,7 @@ export default function Tokens() {
                       key={key}
                       style={{
                         ...getTypographyStyle(key),
-                        color: "var(--uiux-neutral900)",
+                        color: "var(--uiux-preview-text, var(--uiux-neutral900))",
                       }}
                     >
                       {t(`fields.${key}.label`)}
@@ -2041,7 +3135,10 @@ export default function Tokens() {
                     <div
                       key={key}
                       className="rounded-2xl border"
-                      style={{ borderColor: "var(--uiux-neutral600)" }}
+                      style={{
+                        borderColor:
+                          "var(--uiux-preview-border, var(--uiux-neutral600))",
+                      }}
                     >
                       <div
                         className="rounded-xl"
@@ -2077,9 +3174,10 @@ export default function Tokens() {
                       key={key}
                       className="border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]"
                       style={{
-                        borderColor: "var(--uiux-neutral600)",
+                        borderColor:
+                          "var(--uiux-preview-border, var(--uiux-neutral600))",
                         borderRadius: `var(${toRadiusVarName(key)})`,
-                        color: "var(--uiux-neutral900)",
+                        color: "var(--uiux-preview-text, var(--uiux-neutral900))",
                         padding: `${spaceVar("xs")} ${spaceVar("md")}`,
                       }}
                     >
@@ -2093,23 +3191,38 @@ export default function Tokens() {
             {visibility.button ? (
               <div
                 className="grid gap-4 rounded-2xl border p-4"
-                style={{ borderColor: "var(--uiux-neutral600)" }}
+                style={{
+                  borderColor:
+                    "var(--uiux-preview-border, var(--uiux-neutral600))",
+                }}
               >
                 <div className="flex flex-col gap-2">
                   <p
                     className="text-sm"
-                    style={{ color: "var(--uiux-neutral600)" }}
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
                   >
                     {t("uiKit.subtitle")}
                   </p>
-                  <p className="text-xs text-slate-400">{t("uiKit.usage")}</p>
+                  <p
+                    className="text-xs text-slate-400"
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
+                  >
+                    {t("uiKit.usage")}
+                  </p>
                 </div>
                 <div className="grid gap-4">
                   {buttonVariants.map((variantItem) => (
                     <div
                       key={variantItem.key}
                       className="grid gap-3 rounded-2xl border p-4"
-                      style={{ borderColor: "var(--uiux-neutral600)" }}
+                      style={{
+                        borderColor:
+                          "var(--uiux-preview-border, var(--uiux-neutral600))",
+                      }}
                     >
                       <h5 className="text-sm font-semibold uppercase tracking-[0.2em]">
                         {t(`uiKit.variants.${variantItem.key}`)}
@@ -2120,7 +3233,13 @@ export default function Tokens() {
                             key={stateItem.key}
                             className="flex flex-col gap-2"
                           >
-                            <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            <span
+                              className="text-xs uppercase tracking-[0.2em] text-slate-400"
+                              style={{
+                                color:
+                                  "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                              }}
+                            >
                               {t(`uiKit.states.${stateItem.key}`)}
                             </span>
                             <Button
@@ -2148,23 +3267,39 @@ export default function Tokens() {
             {visibility.input ? (
               <div
                 className="grid gap-4 rounded-2xl border p-4"
-                style={{ borderColor: "var(--uiux-neutral600)" }}
+                style={{
+                  borderColor:
+                    "var(--uiux-preview-border, var(--uiux-neutral600))",
+                }}
               >
                 <div className="flex flex-col gap-2">
                   <p
                     className="text-sm"
-                    style={{ color: "var(--uiux-neutral600)" }}
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
                   >
                     {t("uiKitInput.subtitle")}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p
+                    className="text-xs text-slate-400"
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
+                  >
                     {t("uiKitInput.usage")}
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {inputStates.map((stateItem) => (
                     <div key={stateItem.key} className="flex flex-col gap-2">
-                      <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      <span
+                        className="text-xs uppercase tracking-[0.2em] text-slate-400"
+                        style={{
+                          color:
+                            "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                        }}
+                      >
                         {t(`uiKitInput.states.${stateItem.key}`)}
                       </span>
                       <Input
@@ -2197,11 +3332,18 @@ export default function Tokens() {
                 <div className="flex flex-col gap-2">
                   <p
                     className="text-sm"
-                    style={{ color: "var(--uiux-neutral600)" }}
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
                   >
                     {t("uiKitCard.subtitle")}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p
+                    className="text-xs text-slate-400"
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
+                  >
                     {t("uiKitCard.usage")}
                   </p>
                 </div>
@@ -2212,7 +3354,7 @@ export default function Tokens() {
                   shadow={cardShadow}
                   style={{
                     ...cardStyleVars,
-                    color: "var(--uiux-neutral900)",
+                    color: "var(--uiux-preview-text, var(--uiux-neutral900))",
                   }}
                 >
                   <h5 className="text-base font-semibold">
@@ -2220,7 +3362,9 @@ export default function Tokens() {
                   </h5>
                   <p
                     className="text-sm"
-                    style={{ color: "var(--uiux-neutral600)" }}
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
                   >
                     {t("uiKitCard.sampleBody")}
                   </p>
@@ -2232,17 +3376,27 @@ export default function Tokens() {
                 <div className="flex flex-col gap-2">
                   <p
                     className="text-sm"
-                    style={{ color: "var(--uiux-neutral600)" }}
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
                   >
                     {t("uiKitSection.subtitle")}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p
+                    className="text-xs text-slate-400"
+                    style={{
+                      color: "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                    }}
+                  >
                     {t("uiKitSection.usage")}
                   </p>
                 </div>
                 <div
                   className="rounded-2xl border border-dashed p-3"
-                  style={{ borderColor: "var(--uiux-neutral600)" }}
+                  style={{
+                    borderColor:
+                      "var(--uiux-preview-border, var(--uiux-neutral600))",
+                  }}
                 >
                   <Section
                     size={sectionSettings.size}
@@ -2252,8 +3406,10 @@ export default function Tokens() {
                     style={{
                       width: `${sectionPreviewWidth * 100}%`,
                       maxWidth: "100%",
-                      backgroundColor: "var(--uiux-neutral100)",
-                      borderColor: "var(--uiux-neutral600)",
+                      backgroundColor:
+                        "var(--uiux-preview-surface, var(--uiux-neutral100))",
+                      borderColor:
+                        "var(--uiux-preview-border, var(--uiux-neutral600))",
                     }}
                   >
                     <h5 className="text-sm font-semibold">
@@ -2261,7 +3417,10 @@ export default function Tokens() {
                     </h5>
                     <p
                       className="text-sm"
-                      style={{ color: "var(--uiux-neutral600)" }}
+                      style={{
+                        color:
+                          "var(--uiux-preview-muted, var(--uiux-neutral600))",
+                      }}
                     >
                       {t("uiKitSection.sampleBody")}
                     </p>
@@ -2275,6 +3434,7 @@ export default function Tokens() {
           ) : null}
         </div>
       </section>
+
     </div>
   );
 }
