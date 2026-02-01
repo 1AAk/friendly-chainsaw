@@ -11,5 +11,10 @@
     "library": "Библиотека",
     "screens": "Экраны",
     "tokens": "UI Kit"
+  },
+  "themeToggle": {
+    "label": "Тема",
+    "light": "Светлая",
+    "dark": "Тёмная"
   }
 }

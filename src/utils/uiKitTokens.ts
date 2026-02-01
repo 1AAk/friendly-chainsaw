@@ -1,4 +1,5 @@
 const COLOR_STORAGE_KEY = "uiux-color-tokens";
+const LIGHT_COLOR_STORAGE_KEY = "uiux-light-color-tokens";
 const TYPO_STORAGE_KEY = "uiux-typography-tokens";
 const SPACE_STORAGE_KEY = "uiux-spacing-tokens";
 const RADIUS_STORAGE_KEY = "uiux-radius-tokens";
@@ -134,9 +135,13 @@ const readStorage = (key: string) => {
   }
 };
 
-export const buildUiKitVars = (): Record<string, string> => {
+export const buildUiKitVars = (
+  tone: "light" | "dark" = "dark",
+): Record<string, string> => {
   const vars: Record<string, string> = {};
-  const storedTokens = readStorage(COLOR_STORAGE_KEY) as
+  const storedTokens = readStorage(
+    tone === "light" ? LIGHT_COLOR_STORAGE_KEY : COLOR_STORAGE_KEY,
+  ) as
     | Record<string, unknown>
     | null;
   const tokens: Record<TokenKey, string> = { ...DEFAULT_TOKENS };

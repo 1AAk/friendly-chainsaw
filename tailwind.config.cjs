@@ -7,6 +7,9 @@ module.exports = {
         ink: "#0f1115",
         glow: "#f5c16c",
       },
+      fontFamily: {
+        display: ["Unbounded", "Space Grotesk", "system-ui", "sans-serif"],
+      },
       keyframes: {
         "fade-up": {
           "0%": { opacity: "0", transform: "translateY(12px)" },

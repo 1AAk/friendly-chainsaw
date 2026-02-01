@@ -1,4 +1,8 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import StreamableHero from "../components/StreamableHero";
+import ThemeToggle from "../components/ThemeToggle";
 
 type Step = {
   title: string;
@@ -8,36 +12,26 @@ type Step = {
 export default function Home() {
   const { t } = useTranslation("home");
   const stepsValue = t("steps", { returnObjects: true });
-  const badgesValue = t("badges", { returnObjects: true });
   const nextMovesValue = t("nextMoves", { returnObjects: true });
 
   const steps = Array.isArray(stepsValue) ? (stepsValue as Step[]) : [];
-  const badges = Array.isArray(badgesValue) ? (badgesValue as string[]) : [];
   const nextMoves = Array.isArray(nextMovesValue)
     ? (nextMovesValue as string[])
     : [];
+  const [heroTone, setHeroTone] = useState<"light" | "dark">("light");
 
   return (
     <>
-      <section className="flex flex-col gap-6 motion-safe:animate-fade-in">
-        <p className="text-sm uppercase tracking-[0.3em] text-amber-200">
-          {t("tagline")}
-        </p>
-        <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
-          {t("title")}
-        </h1>
-        <p className="max-w-2xl text-lg text-slate-300">{t("subtitle")}</p>
-        <div className="flex flex-wrap gap-3">
-          {badges.map((label) => (
-            <span
-              key={label}
-              className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-200"
-            >
-              {label}
-            </span>
-          ))}
+      <div className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10">
+        <StreamableHero
+          title={t("title")}
+          tone={heroTone}
+          className="min-h-[calc(100vh+120px)] w-full rounded-[3.5rem] sm:rounded-[4rem] lg:rounded-[4.5rem]"
+        />
+        <div className="absolute right-6 top-6 z-30">
+          <ThemeToggle value={heroTone} onChange={setHeroTone} />
         </div>
-      </section>
+      </div>
 
       <section className="grid gap-6 md:grid-cols-3">
         {steps.map((step, index) => (

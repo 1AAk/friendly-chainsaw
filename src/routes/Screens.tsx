@@ -1,11 +1,37 @@
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "../components/Button";
 import Card from "../components/Card";
 import Input from "../components/Input";
 import Section from "../components/Section";
+import ThemeToggle from "../components/ThemeToggle";
+import {
+  INTERACTION_EASINGS,
+  buildInteractionShadow,
+  getRevealStyle,
+  getStoredInteractionSettings,
+} from "../utils/interactionSettings";
 import { buildUiKitVars } from "../utils/uiKitTokens";
+
+const PREVIEW_TONE_STORAGE_KEY = "uiux-preview-tone";
+
+type PreviewTone = "light" | "dark";
+
+const getStoredPreviewTone = (): PreviewTone => {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const stored = window.localStorage.getItem(PREVIEW_TONE_STORAGE_KEY);
+  return stored === "dark" ? "dark" : "light";
+};
 
 type Highlight = {
   value: string;
@@ -22,6 +48,18 @@ type GridItem = {
   body: string;
   tag: string;
 };
+
+type RevealProps = {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+};
+
+const Reveal = ({ children, className = "", style }: RevealProps) => (
+  <div className={`uiux-reveal ${className}`.trim()} style={style}>
+    {children}
+  </div>
+);
 
 const typeStyle = (token: string): CSSProperties => ({
   fontSize: `var(--uiux-${token}-size)`,
@@ -45,15 +83,88 @@ export default function Screens() {
     ? (gridItemsValue as GridItem[])
     : [];
 
+  const [previewTone, setPreviewTone] = useState<PreviewTone>(() =>
+    getStoredPreviewTone(),
+  );
   const [uiKitVars, setUiKitVars] = useState<Record<string, string>>(() =>
-    buildUiKitVars(),
+    buildUiKitVars(previewTone),
+  );
+  const [interactionSettings, setInteractionSettings] = useState(() =>
+    getStoredInteractionSettings(),
   );
 
   useEffect(() => {
-    setUiKitVars(buildUiKitVars());
+    setUiKitVars(buildUiKitVars(previewTone));
+  }, [previewTone]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(PREVIEW_TONE_STORAGE_KEY, previewTone);
+  }, [previewTone]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "uiux-interaction-settings") {
+        setInteractionSettings(getStoredInteractionSettings());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  const uiKitStyle = useMemo(() => uiKitVars as CSSProperties, [uiKitVars]);
+  const toneOverrides = useMemo(() => {
+    if (previewTone !== "dark") {
+      return {};
+    }
+    const neutral100 = uiKitVars["--uiux-neutral100"] ?? "#F8FAFC";
+    const neutral900 = uiKitVars["--uiux-neutral900"] ?? "#0F172A";
+    return {
+      "--uiux-neutral100": neutral900,
+      "--uiux-neutral900": neutral100,
+      "--uiux-neutral600": `color-mix(in srgb, ${neutral100} 70%, transparent)`,
+      "--uiux-input-bg": `color-mix(in srgb, ${neutral900} 88%, ${neutral100})`,
+      "--uiux-input-text": neutral100,
+      "--uiux-input-placeholder": `color-mix(in srgb, ${neutral100} 60%, transparent)`,
+      "--uiux-input-border": `color-mix(in srgb, ${neutral100} 20%, transparent)`,
+    } as CSSProperties;
+  }, [previewTone, uiKitVars]);
+
+  const uiKitStyle = useMemo(
+    () => ({ ...uiKitVars, ...toneOverrides }) as CSSProperties,
+    [uiKitVars, toneOverrides],
+  );
+  const interactionVars = useMemo(() => {
+    const revealTiming = INTERACTION_EASINGS[interactionSettings.revealEasing];
+    const hoverScaleValue = 1 + interactionSettings.hoverScale / 100;
+    return {
+      "--uiux-hover-lift": `${interactionSettings.hoverLift}px`,
+      "--uiux-hover-scale": `${hoverScaleValue}`,
+      "--uiux-hover-shadow": buildInteractionShadow(
+        interactionSettings.hoverShadow,
+      ),
+      "--uiux-reveal-duration": `${interactionSettings.revealDuration}ms`,
+      "--uiux-reveal-ease": revealTiming,
+      "--uiux-reveal-distance": `${interactionSettings.revealDistance}px`,
+    } as CSSProperties;
+  }, [interactionSettings]);
+  const forcedFieldState = interactionSettings.forceError
+    ? "error"
+    : interactionSettings.forceFocus
+      ? "focus"
+      : "default";
+  const emailPreviewState = interactionSettings.forceError
+    ? "error"
+    : interactionSettings.forceFocus
+      ? "focus"
+      : "default";
+  let revealIndex = 0;
+  const nextRevealStyle = () =>
+    getRevealStyle(interactionSettings, revealIndex++);
   const h1Style = typeStyle("h1");
   const h2Style = typeStyle("h2");
   const h3Style = typeStyle("h3");
@@ -63,26 +174,65 @@ export default function Screens() {
   const mutedTextStyle: CSSProperties = { color: "var(--uiux-neutral600)" };
 
   return (
-    <div className="flex flex-col gap-12">
-      <section className="flex flex-col gap-3">
-        <p className="text-xs uppercase tracking-[0.3em] text-amber-200">
-          {t("tagline")}
-        </p>
-        <h1 className="text-3xl font-semibold">
-          {t("title")}
-        </h1>
-        <p className="text-slate-300">
-          {t("subtitle")}
-        </p>
-      </section>
+    <div
+      className="flex flex-col gap-12"
+      style={interactionVars}
+      data-force-hover={interactionSettings.forceHover ? "true" : "false"}
+    >
+      <style>{`
+        @keyframes uiux-reveal {
+          from {
+            opacity: 0;
+            transform: translateY(var(--uiux-reveal-distance, 16px));
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .uiux-reveal {
+          animation-name: uiux-reveal;
+          animation-duration: var(--uiux-reveal-duration, 420ms);
+          animation-timing-function: var(--uiux-reveal-ease, ease);
+          animation-fill-mode: both;
+        }
+        .uiux-interactive {
+          --uiux-card-shadow: none;
+          transition: transform 180ms var(--uiux-reveal-ease, ease),
+            box-shadow 180ms var(--uiux-reveal-ease, ease);
+          will-change: transform, box-shadow;
+        }
+        .uiux-interactive:hover:not(:has(.uiux-interactive:hover)),
+        [data-force-hover="true"] .uiux-interactive {
+          transform: translateY(calc(-1 * var(--uiux-hover-lift, 0px)))
+            scale(var(--uiux-hover-scale, 1));
+          box-shadow: var(--uiux-hover-shadow, none);
+          --uiux-card-shadow: var(--uiux-hover-shadow, none);
+        }
+      `}</style>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <section className="flex flex-col gap-3">
+          <p className="text-xs uppercase tracking-[0.3em] text-amber-200">
+            {t("tagline")}
+          </p>
+          <h1 className="text-3xl font-semibold">
+            {t("title")}
+          </h1>
+          <p className="text-slate-300">
+            {t("subtitle")}
+          </p>
+        </section>
+        <ThemeToggle value={previewTone} onChange={setPreviewTone} />
+      </div>
 
       <div className="flex flex-col gap-12">
         <Card
           paddingToken="3xl"
           radiusToken="xl"
-          className="border"
+          className="border uiux-reveal"
           style={{
             ...uiKitStyle,
+            ...nextRevealStyle(),
             backgroundColor: "var(--uiux-neutral100)",
             color: "var(--uiux-neutral900)",
             borderColor: "var(--uiux-neutral600)",
@@ -123,8 +273,16 @@ export default function Screens() {
                     className="flex flex-wrap"
                     style={{ gap: "var(--uiux-space-sm)" }}
                   >
-                    <Button variant="primary">{t("landing.primary")}</Button>
-                    <Button variant="secondary">{t("landing.secondary")}</Button>
+                    <Reveal className="inline-flex" style={nextRevealStyle()}>
+                      <Button variant="primary" className="uiux-interactive">
+                        {t("landing.primary")}
+                      </Button>
+                    </Reveal>
+                    <Reveal className="inline-flex" style={nextRevealStyle()}>
+                      <Button variant="secondary" className="uiux-interactive">
+                        {t("landing.secondary")}
+                      </Button>
+                    </Reveal>
                   </div>
                 </div>
 
@@ -133,26 +291,27 @@ export default function Screens() {
                   style={{ gap: "var(--uiux-space-md)" }}
                 >
                   {highlights.map((item) => (
-                    <Card
-                      key={item.label}
-                      paddingToken="md"
-                      radiusToken="lg"
-                      className="border"
-                      style={{
-                        borderColor: "var(--uiux-neutral600)",
-                        backgroundColor: "var(--uiux-neutral100)",
-                      }}
-                    >
-                      <p className="text-2xl font-semibold" style={h3Style}>
-                        {item.value}
-                      </p>
-                      <p
-                        className="text-xs uppercase tracking-[0.2em]"
-                        style={{ ...captionStyle, ...mutedTextStyle }}
+                    <Reveal key={item.label} style={nextRevealStyle()}>
+                      <Card
+                        paddingToken="md"
+                        radiusToken="lg"
+                        className="border uiux-interactive"
+                        style={{
+                          borderColor: "var(--uiux-neutral600)",
+                          backgroundColor: "var(--uiux-neutral100)",
+                        }}
                       >
-                        {item.label}
-                      </p>
-                    </Card>
+                        <p className="text-2xl font-semibold" style={h3Style}>
+                          {item.value}
+                        </p>
+                        <p
+                          className="text-xs uppercase tracking-[0.2em]"
+                          style={{ ...captionStyle, ...mutedTextStyle }}
+                        >
+                          {item.label}
+                        </p>
+                      </Card>
+                    </Reveal>
                   ))}
                 </div>
               </div>
@@ -173,21 +332,24 @@ export default function Screens() {
                 style={{ gap: "var(--uiux-space-lg)" }}
               >
                 {landingSections.map((item) => (
-                  <Card
-                    key={item.title}
-                    paddingToken="lg"
-                    radiusToken="xl"
-                    className="border"
-                    style={{
-                      borderColor: "var(--uiux-neutral600)",
-                      backgroundColor: "var(--uiux-neutral100)",
-                    }}
-                  >
-                    <h4 className="font-semibold" style={h4Style}>
-                      {item.title}
-                    </h4>
-                    <p style={{ ...bodyStyle, ...mutedTextStyle }}>{item.body}</p>
-                  </Card>
+                  <Reveal key={item.title} style={nextRevealStyle()}>
+                    <Card
+                      paddingToken="lg"
+                      radiusToken="xl"
+                      className="border uiux-interactive"
+                      style={{
+                        borderColor: "var(--uiux-neutral600)",
+                        backgroundColor: "var(--uiux-neutral100)",
+                      }}
+                    >
+                      <h4 className="font-semibold" style={h4Style}>
+                        {item.title}
+                      </h4>
+                      <p style={{ ...bodyStyle, ...mutedTextStyle }}>
+                        {item.body}
+                      </p>
+                    </Card>
+                  </Reveal>
                 ))}
               </div>
             </Section>
@@ -197,9 +359,10 @@ export default function Screens() {
         <Card
           paddingToken="3xl"
           radiusToken="xl"
-          className="border"
+          className="border uiux-reveal"
           style={{
             ...uiKitStyle,
+            ...nextRevealStyle(),
             backgroundColor: "var(--uiux-neutral100)",
             color: "var(--uiux-neutral900)",
             borderColor: "var(--uiux-neutral600)",
@@ -230,27 +393,30 @@ export default function Screens() {
               style={{ gap: "var(--uiux-space-lg)" }}
             >
               {gridItems.map((item) => (
-                <Card
-                  key={item.title}
-                  paddingToken="lg"
-                  radiusToken="lg"
-                  className="border"
-                  style={{
-                    borderColor: "var(--uiux-neutral600)",
-                    backgroundColor: "var(--uiux-neutral100)",
-                  }}
-                >
-                  <p
-                    className="text-xs uppercase tracking-[0.2em]"
-                    style={{ ...captionStyle, ...mutedTextStyle }}
+                <Reveal key={item.title} style={nextRevealStyle()}>
+                  <Card
+                    paddingToken="lg"
+                    radiusToken="lg"
+                    className="border uiux-interactive"
+                    style={{
+                      borderColor: "var(--uiux-neutral600)",
+                      backgroundColor: "var(--uiux-neutral100)",
+                    }}
                   >
-                    {item.tag}
-                  </p>
-                  <h3 className="font-semibold" style={h3Style}>
-                    {item.title}
-                  </h3>
-                  <p style={{ ...bodyStyle, ...mutedTextStyle }}>{item.body}</p>
-                </Card>
+                    <p
+                      className="text-xs uppercase tracking-[0.2em]"
+                      style={{ ...captionStyle, ...mutedTextStyle }}
+                    >
+                      {item.tag}
+                    </p>
+                    <h3 className="font-semibold" style={h3Style}>
+                      {item.title}
+                    </h3>
+                    <p style={{ ...bodyStyle, ...mutedTextStyle }}>
+                      {item.body}
+                    </p>
+                  </Card>
+                </Reveal>
               ))}
             </div>
           </Section>
@@ -259,9 +425,10 @@ export default function Screens() {
         <Card
           paddingToken="3xl"
           radiusToken="xl"
-          className="border"
+          className="border uiux-reveal"
           style={{
             ...uiKitStyle,
+            ...nextRevealStyle(),
             backgroundColor: "var(--uiux-neutral100)",
             color: "var(--uiux-neutral900)",
             borderColor: "var(--uiux-neutral600)",
@@ -298,6 +465,7 @@ export default function Screens() {
                 <Input
                   size="md"
                   radiusToken="lg"
+                  previewState={forcedFieldState}
                   placeholder={t("form.fields.name.placeholder")}
                 />
                 <p style={{ ...captionStyle, ...mutedTextStyle }}>
@@ -311,15 +479,17 @@ export default function Screens() {
                 <Input
                   size="md"
                   radiusToken="lg"
-                  previewState="error"
+                  previewState={emailPreviewState}
                   placeholder={t("form.fields.email.placeholder")}
                 />
-                <p
-                  className="text-sm"
-                  style={{ ...captionStyle, color: "var(--uiux-error)" }}
-                >
-                  {t("form.fields.email.error")}
-                </p>
+                {interactionSettings.forceError ? (
+                  <p
+                    className="text-sm"
+                    style={{ ...captionStyle, color: "var(--uiux-error)" }}
+                  >
+                    {t("form.fields.email.error")}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-col" style={{ gap: "var(--uiux-space-sm)" }}>
                 <p className="font-semibold" style={h4Style}>
@@ -328,6 +498,7 @@ export default function Screens() {
                 <Input
                   size="md"
                   radiusToken="lg"
+                  previewState={forcedFieldState}
                   placeholder={t("form.fields.company.placeholder")}
                 />
                 <p style={{ ...captionStyle, ...mutedTextStyle }}>
@@ -340,8 +511,16 @@ export default function Screens() {
               className="flex flex-wrap items-center"
               style={{ gap: "var(--uiux-space-sm)" }}
             >
-              <Button variant="primary">{t("form.primary")}</Button>
-              <Button variant="secondary">{t("form.secondary")}</Button>
+              <Reveal className="inline-flex" style={nextRevealStyle()}>
+                <Button variant="primary" className="uiux-interactive">
+                  {t("form.primary")}
+                </Button>
+              </Reveal>
+              <Reveal className="inline-flex" style={nextRevealStyle()}>
+                <Button variant="secondary" className="uiux-interactive">
+                  {t("form.secondary")}
+                </Button>
+              </Reveal>
               <p style={{ ...captionStyle, ...mutedTextStyle }}>
                 {t("form.footer")}
               </p>

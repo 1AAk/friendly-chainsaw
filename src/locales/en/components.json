@@ -11,5 +11,10 @@
     "library": "Library",
     "screens": "Screens",
     "tokens": "UI Kit"
+  },
+  "themeToggle": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark"
   }
 }

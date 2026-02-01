@@ -3,6 +3,9 @@
 Short session notes. Format: date, task (if any), key outcomes.
 
 ## Unreleased
+- 2026-01-30: Added a Streamable hero layout with ShaderGradient canvas and layered info cards on the Home page.
+- 2026-01-30: Added ShaderGradient/three dependencies and a hero grid/orb styling layer for the new layout.
+- 2026-01-30: Updated Home copy in EN/RU to match the Streamable hero.
 - 2026-01-26: Marked Stage 2 and UI Kit v0.1 as completed in the learning plan.
 - 2026-01-26: Aligned Library preview backgrounds/text to neutral100/neutral900 semantics.
 - 2026-01-26: Scoped UI Kit token styling to the Library preview window and restored the global app theme.

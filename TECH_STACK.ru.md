@@ -9,6 +9,10 @@
 - **Tailwind CSS** - utility-first стиль для быстрых UI-итераций.
 - **PostCSS + Autoprefixer** - обработка CSS.
 
+## Visual Effects
+- **@shadergradient/react** - ShaderGradient-канвас для геро-блоков.
+- **three + @react-three/fiber + @react-three/drei** - WebGL-рендеринг для градиентных сцен.
+
 ## Routing
 - **React Router** - клиентский роутинг и подгрузка i18n namespaces по маршрутам.
 

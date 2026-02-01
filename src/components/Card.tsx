@@ -28,10 +28,12 @@ export default function Card({
   style,
   ...props
 }: CardProps) {
+  const baseShadow = shadow ?? "0 24px 60px rgba(15, 23, 42, 0.18)";
   const mergedStyle = {
     padding: `var(--uiux-space-${paddingToken}, 16px)`,
     borderRadius: `var(--uiux-radius-${radiusToken}, 16px)`,
-    boxShadow: shadow ?? "0 24px 60px rgba(15, 23, 42, 0.18)",
+    ["--uiux-card-shadow-base" as string]: baseShadow,
+    boxShadow: "var(--uiux-card-shadow, var(--uiux-card-shadow-base))",
     ...style,
   };
 

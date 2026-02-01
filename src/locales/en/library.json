@@ -69,6 +69,30 @@
     "searchPlaceholder": "e.g., onboarding",
     "emailLabel": "Email",
     "emailPlaceholder": "you@example.com",
+    "roleLabel": "Role",
+    "rolePlaceholder": "Select your role",
+    "roleOptions": {
+      "ui": "UI designer",
+      "product": "Product manager",
+      "dev": "Developer"
+    },
+    "preferencesLabel": "Notifications",
+    "preferencesHint": "Pick what you want to receive.",
+    "preferencesOptions": {
+      "updates": "Product updates",
+      "invites": "Team invites",
+      "newsletter": "Weekly digest"
+    },
+    "projectLabel": "Project type",
+    "projectHint": "Helps us tailor the demo.",
+    "projectOptions": {
+      "new": "New interface",
+      "redesign": "Redesign",
+      "prototype": "Prototype"
+    },
+    "messageLabel": "Message",
+    "messagePlaceholder": "Tell us about your UI kit goal",
+    "messageHint": "Optional, but it gives context.",
     "primary": "Send request",
     "secondary": "Save draft"
   },

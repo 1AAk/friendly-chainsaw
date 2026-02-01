@@ -9,6 +9,10 @@
 - **Tailwind CSS** - utility-first styling for rapid UI iteration.
 - **PostCSS + Autoprefixer** - CSS processing.
 
+## Visual Effects
+- **@shadergradient/react** - ShaderGradient canvas component for hero visuals.
+- **three + @react-three/fiber + @react-three/drei** - WebGL rendering for gradient scenes.
+
 ## Routing
 - **React Router** - client-side routing and route-driven i18n namespace loading.
 

@@ -1,8 +1,18 @@
 {
-  "tagline": "UI/UX starter kit",
-  "title": "Build your first interface with a clean, modern front-end stack.",
-  "subtitle": "This project is wired for React, Vite, Tailwind, ESLint, Prettier, and Docker. Start with layout experiments and iterate quickly with HMR.",
+  "tagline": "Streaming interface concept",
+  "title": "Streamable",
+  "subtitle": "Motion-first hero art direction with a live ShaderGradient canvas, placed exactly where the spotlight lands.",
   "badges": ["React", "Vite", "TypeScript", "Tailwind", "Docker", "ESLint", "Prettier"],
+  "heroCards": [
+    {
+      "title": "Live shader motion",
+      "body": "Your preset values drive the sphere mesh, camera angle, and grain for the hero scene."
+    },
+    {
+      "title": "Layered info panels",
+      "body": "Glass cards float over the gradient to echo the reference layout and hierarchy."
+    }
+  ],
   "stepsLabel": "Step {{number}}",
   "steps": [
     {

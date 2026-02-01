@@ -8,6 +8,7 @@ import { getRouteNamespaces } from "./i18n/routeNamespaces";
 import Home from "./routes/Home";
 import Library from "./routes/Library";
 import Screens from "./routes/Screens";
+import StreamableCanvas from "./routes/StreamableCanvas";
 import Tokens from "./routes/Tokens";
 
 function AppLayout() {
@@ -16,6 +17,7 @@ function AppLayout() {
   const isWide =
     location.pathname.startsWith("/library") ||
     location.pathname.startsWith("/screens");
+  const isStreamableCanvas = location.pathname === "/streamable-canvas";
 
   useEffect(() => {
     const namespaces = getRouteNamespaces(location.pathname);
@@ -24,27 +26,42 @@ function AppLayout() {
 
   useEffect(() => {
     if (ready && typeof document !== "undefined") {
-      document.title = t("appName");
+      document.title = isStreamableCanvas ? "Streamable Canvas" : t("appName");
     }
-  }, [ready, t, i18n.language]);
+  }, [ready, t, i18n.language, isStreamableCanvas]);
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900/40 to-slate-950 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-amber-400/20 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
-      </div>
+    <div
+      className={
+        isStreamableCanvas
+          ? "min-h-screen bg-white text-slate-900"
+          : "relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900/40 to-slate-950 text-slate-100"
+      }
+    >
+      {!isStreamableCanvas && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-amber-400/20 blur-3xl" />
+          <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+        </div>
+      )}
       <main
-        className={`relative mx-auto flex w-full flex-col gap-12 px-6 py-16 ${
-          isWide ? "max-w-7xl" : "max-w-5xl"
-        }`}
+        className={
+          isStreamableCanvas
+            ? "relative w-full"
+            : `relative mx-auto flex w-full flex-col gap-12 px-6 py-16 ${
+                isWide ? "max-w-7xl" : "max-w-5xl"
+              }`
+        }
       >
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <Navigation />
-          <LanguageSwitcher />
-        </header>
+        {!isStreamableCanvas && (
+          <header className="flex flex-wrap items-center justify-between gap-4">
+            <Navigation />
+            <LanguageSwitcher />
+          </header>
+        )}
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/streamable-canvas" element={<StreamableCanvas />} />
           <Route path="/library" element={<Library />} />
           <Route path="/screens" element={<Screens />} />
           <Route path="/tokens" element={<Tokens />} />

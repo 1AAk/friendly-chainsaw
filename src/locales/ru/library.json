@@ -69,6 +69,30 @@
     "searchPlaceholder": "например, onboarding",
     "emailLabel": "Почта",
     "emailPlaceholder": "you@example.com",
+    "roleLabel": "Роль",
+    "rolePlaceholder": "Выбери роль",
+    "roleOptions": {
+      "ui": "UI-дизайнер",
+      "product": "Продакт-менеджер",
+      "dev": "Разработчик"
+    },
+    "preferencesLabel": "Уведомления",
+    "preferencesHint": "Выбери, что получать.",
+    "preferencesOptions": {
+      "updates": "Обновления продукта",
+      "invites": "Приглашения в команду",
+      "newsletter": "Еженедельный дайджест"
+    },
+    "projectLabel": "Тип проекта",
+    "projectHint": "Помогает подобрать примеры.",
+    "projectOptions": {
+      "new": "Новый интерфейс",
+      "redesign": "Редизайн",
+      "prototype": "Прототип"
+    },
+    "messageLabel": "Комментарий",
+    "messagePlaceholder": "Коротко опиши задачу",
+    "messageHint": "Необязательно, но помогает.",
     "primary": "Отправить запрос",
     "secondary": "Сохранить черновик"
   },
